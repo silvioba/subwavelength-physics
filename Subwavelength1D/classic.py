@@ -4,6 +4,7 @@ from Subwavelength1D.swp import (
     PeriodicSWP1D,
 )
 
+
 import Subwavelength1D.utils_propagation as utils_propagation
 
 import matplotlib.pyplot as plt
