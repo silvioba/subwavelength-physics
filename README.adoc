@@ -1,0 +1,24 @@
+== Subwavelength physics
+
+=== Introduction
+
+This project serves as code base for the research mainly based at ETH Zürich in the group of Prof. Dr H. Ammari.
+
+Maintainers of the 
+repository are:
+
+.Maintainers
+* Silvio Barandun (silvio.barandun at sam.math.ethz.ch)
+* Alexander Uhlmann (alexander.uhlmann at sam.math.ethz.ch)
+
+=== Project Structure
+----
+├─ Subwavelength1D          <- One dimensional systems
+|   ├─ classic.py         <- Classic wave propagation
+|   ├─ disordered.py         <- Subclass of classic with extra functions for disordered
+
+
+----
+
+=== Coding guidelines
+1. Use numpy docstrings
