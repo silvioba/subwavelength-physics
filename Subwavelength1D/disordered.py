@@ -98,6 +98,27 @@ class DisorderedClassicFiniteSWP1D(
         np.random.seed(seed)
         return cls.from_blocks(blocks=blocks, idxs=np.random.choice(len(blocks), n_reps, p=weights), **params)
 
+    def get_block_list(self):
+        return [self.blocks[idx] for idx in self.idxs]
+
+    def get_block_index_at_x(self, x):
+        assert x >= self.xi[0] and x <= self.xi[-1]
+        endpoint = 0
+        for i, block in enumerate(self.get_block_list()):
+            endpoint += sum(block[0]) + sum(block[1])
+            if x < endpoint:
+                return i
+
+    def get_block_bounds(self, idx):
+        assert 0 <= idx < len(self.idxs)
+        left = 0
+        right = 0
+        for i, block in enumerate(self.get_block_list()):
+            right = left + sum(block[0]) + sum(block[1])
+            if i == idx:
+                return left, right
+            left = right
+
     def plot_variance_band_functions(
         self,
         s_N=1,
