@@ -24,8 +24,8 @@ class SWP1D:
         duin=lambda x: np.cos(x),
     ):
         self.N = len(l)
-        self.l = l
-        self.s = s
+        self.set_geometry(l, s)
+
         self.v_in = v_in
         self.v_out = v_out
 
@@ -39,6 +39,10 @@ class SWP1D:
 
         self.uin = uin
         self.duin = duin
+
+    def set_geometry(self, l: np.ndarray | float, s: np.ndarray | float):
+        self.l = l.astype(float)
+        self.s = s.astype(float)
 
         self.L = np.sum(self.l) + np.sum(self.s)
         # ds is the array with the distances between the interesting points
@@ -67,22 +71,36 @@ class SWP1D:
         dp_perturbed = copy.deepcopy(self)
         perturb_array: np.array = None
         if perturb_param == "spacing":
-            perturb_array = dp_perturbed.s
+            perturb_array = dp_perturbed.s.copy()
         elif perturb_param == "sizes":
-            perturb_array = dp_perturbed.l
+            perturb_array = dp_perturbed.l.copy()
         elif perturb_param == "material":
-            perturb_array = dp_perturbed.v_in
+            perturb_array = dp_perturbed.v_in.copy()
 
         if p_sampling == "uniform":
             perturbation = np.random.uniform(-p, p, len(perturb_array))
-            perturb_array[:] += perturbation
+            perturb_array += perturbation
         elif p_sampling == "positive":
             perturbation = np.random.uniform(0, p, len(perturb_array))
-            perturb_array[:] += perturbation
+            perturb_array += perturbation
         elif p_sampling == "loguniform":
             perturbation = np.random.uniform(10**-p, 10**p, len(perturb_array))
-            perturb_array[:] *= perturbation
+            perturb_array *= perturbation
+
+        if perturb_param == "spacing":
+            dp_perturbed.set_geometry(dp_perturbed.l, perturb_array)
+        elif perturb_param == "sizes":
+            dp_perturbed.set_geometry(perturb_array, dp_perturbed.s)
+        elif perturb_param == "material":
+            dp_perturbed.v_in = perturb_array
+
         return dp_perturbed
+
+    def plot_geometry(self):
+        fig, ax = plt.subplots()
+        for xs in self.xiCol:
+            ax.plot(xs, np.ones_like(xs), c='k')
+        return fig, ax
 
 
 class FiniteSWP1D(SWP1D):

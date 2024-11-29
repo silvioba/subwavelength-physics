@@ -43,6 +43,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         return super().__str__() + "\nPhysics:      Classic system"
 
     def set_params(self, **params):
+
         for key, val in params.items():
             if hasattr(self, key):
                 setattr(self, key, val)
