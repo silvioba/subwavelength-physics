@@ -109,6 +109,18 @@ class DisorderedClassicFiniteSWP1D(
             if x < endpoint:
                 return i
 
+    def resonators_before_index(self, idx):
+        assert 0 <= idx < self.N
+        return sum([len(block[0]) for block in self.get_block_list()[:idx]])
+
+    def get_block_index_at_resonator(self, j):
+        assert 0 <= j < self.N
+        res_idx = 0
+        for i, block in enumerate(self.get_block_list()):
+            res_idx += len(block[0])
+            if j < res_idx:
+                return i
+
     def get_block_bounds(self, idx):
         assert 0 <= idx < len(self.idxs)
         left = 0
