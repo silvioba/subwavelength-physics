@@ -336,7 +336,9 @@ class ClassicFiniteFWP3D(SWP3D):
         return S
 
     def get_capacitance_matrix(self, N_multipole=1) -> np.ndarray:
-        S = self.compute_single_layer_potential_matrix(N_multipole=N_multipole)
+        S = self.compute_single_layer_potential_matrix_bruteforce(
+            N_multipole=N_multipole
+        )
         C = np.zeros((self.N, self.N), dtype=complex)
 
         # TODO: S should be symmetric in a classical system. Then we could use cholsesky
