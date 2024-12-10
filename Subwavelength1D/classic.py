@@ -12,6 +12,8 @@ from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
 from typing import Literal, Callable, Tuple, Self, List, override
 
+import copy
+
 from Subwavelength1D.settings import settings
 
 from Subwavelength1D.utils_general import *
@@ -86,9 +88,6 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         L = np.diag(1 / self.l)
         V = np.diag(self.v_in)
         return V**2 @ L @ C
-
-    def get_greens_matrix(self, k):
-        return np.linalg.inv(self.get_generalised_capacitance_matrix()-k*np.eye(self.N))
 
     def compute_propagation_matrix(
         self, space_from_end=1, subwavelength=True
@@ -185,61 +184,6 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
 
         return lambda alpha: V**2 @ L @ self.get_capacitance_matrix()(alpha)
 
-    def get_band_data(
-        self, generalised=False, nalpha=100
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Returns the band data of the capacitance matrix
-
-        Args:
-            generalised (bool, optional): doesnt work yet. Defaults to False.
-            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
-
-        Returns:
-            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
-            np.ndarray: (nalpha, self.N) array with band data
-        """
-        alphas = np.linspace(-np.pi, np.pi, nalpha)
-        if generalised:
-            C = self.get_generalised_capacitance_matrix()
-            bands = np.zeros((nalpha, self.N), dtype=complex)
-            for i, alpha in enumerate(alphas):
-                # raise NotImplementedError("Eigenvalues are not sorted yet")
-                D, S = np.linalg.eig(C(alpha))
-                bands[i, :] = np.sort(np.real(D))
-
-        else:
-            bands = np.zeros((nalpha, self.N), dtype=float)
-            C = self.get_capacitance_matrix()
-            for i, alpha in enumerate(alphas):
-                D, S = np.linalg.eigh(C(alpha))
-                bands[i, :] = D
-
-        return alphas, bands
-
-    def plot_band_functions(self, generalised=False, nalpha=100, figax=None) -> Tuple:
-        """
-        Plots the band functions of the capacitance matrix
-
-        Args:
-            generalised (bool, optional): doesnt work yet. Defaults to False.
-            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
-            figax (_type_, optional): Tuple (fig,ax) on which to plot. None means do a new plot. Defaults to None.
-
-        Returns:
-            Tuple: fig, ax matplotlib
-        """
-        alphas, bands = self.get_band_data(generalised, nalpha)
-        if figax is None:
-            fig, ax = plt.subplots(figsize=settings.figure_size)
-        else:
-            fig, ax = figax
-        ax.plot(alphas, bands, "k-")
-        ax.set_xticks([-np.pi, 0, np.pi], [r"$-\pi$", r"$0$", r"$\pi$"])
-        # ax.set_xlabel("Site index $i$")
-        ax.set_ylabel(r"$\lambda_i$")
-        return fig, ax
-
 
 def convert_periodic_into_finite(
     periodic_problem: ClassicPeriodicSWP1D, i: int
@@ -254,6 +198,7 @@ def convert_periodic_into_finite(
     Returns:
         OneDimensionalClassicFiniteSWLProblem: _description_
     """
+    periodic_problem = copy.deepcopy(periodic_problem)
     return ClassicFiniteSWP1D(
         N=periodic_problem.N * i,
         l=np.concatenate([periodic_problem.l for _ in range(i)]),
@@ -280,6 +225,7 @@ def convert_finite_into_periodic(
     Returns:
         OneDimensionalClassicPeriodicSWLProblem
     """
+    finite_problem = copy.deepcopy(finite_problem)
     return ClassicPeriodicSWP1D(
         N=finite_problem.N,
         l=finite_problem.l,
