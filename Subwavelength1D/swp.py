@@ -41,7 +41,7 @@ class SWP1D:
 
         self.L = np.sum(self.l) + np.sum(self.s)
         # ds is the array with the distances between the interesting points
-        ds = np.zeros(len(self.l)+len(self.s))
+        ds = np.zeros(len(self.l) + len(self.s))
         ds[::2] = self.l
         ds[1::2] = self.s
 
@@ -60,7 +60,7 @@ class SWP1D:
         self,
         p: float,
         perturb_param: Literal["spacing", "sizes", "material"] = "spacing",
-        p_sampling: Literal["uniform", "positive", "loguniform"] = "uniform"
+        p_sampling: Literal["uniform", "positive", "loguniform"] = "uniform",
     ):
 
         dp_perturbed = copy.deepcopy(self)
@@ -115,8 +115,7 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(
-                    v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
             )
 
         if (
@@ -125,8 +124,7 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(
-                    v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
                 * v_in
             )
 
@@ -135,7 +133,7 @@ class FiniteSWP1D(SWP1D):
         ), f"The len of the l array (currently {len(self.l)}) must be equal to N={N}"
         assert (
             len(s) == N - 1
-        ), f"The len of s array (currently {len(self.s)}) must be equal to N={N-1}"
+        ), f"The len of s array (currently {len(self.s)}) must be equal to N-1={N-1}"
         if v_in is not None:
             assert len(v_in) == N, "The l of v_in array must be equal to N"
 
@@ -171,7 +169,9 @@ class FiniteSWP1D(SWP1D):
         if sorting == "abs":
             return D[np.argsort(np.abs(D))], S[:, np.argsort(np.abs(D))]
 
-    def plot_eigenvalues(self, generalised=True, sort=Literal["real"], colorfunc=None, ax=None):
+    def plot_eigenvalues(
+        self, generalised=True, sort=Literal["real"], colorfunc=None, ax=None
+    ):
         """
         Plots the eigenvalues of the capacitance matrix.
 
@@ -223,8 +223,7 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(
-                    v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
             )
 
         if (
@@ -233,8 +232,7 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(
-                    v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
                 * v_in
             )
 

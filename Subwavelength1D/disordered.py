@@ -25,9 +25,7 @@ from Subwavelength1D.utils_general import *
 plt.rcParams.update(settings.matplotlib_params)
 
 
-class DisorderedClassicFiniteSWP1D(
-    ClassicFiniteSWP1D
-):
+class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
     def __init__(self, **params):
         super().__init__(**params)
 
@@ -96,7 +94,11 @@ class DisorderedClassicFiniteSWP1D(
             assert sum(weights) == 1, "sum(weights) must be 1"
 
         np.random.seed(seed)
-        return cls.from_blocks(blocks=blocks, idxs=np.random.choice(len(blocks), n_reps, p=weights), **params)
+        return cls.from_blocks(
+            blocks=blocks,
+            idxs=np.random.choice(len(blocks), n_reps, p=weights),
+            **params,
+        )
 
     def plot_variance_band_functions(
         self,
@@ -109,15 +111,14 @@ class DisorderedClassicFiniteSWP1D(
         **kwargs,
     ):
         pwp = convert_finite_into_periodic(self, s_N=s_N)
-        alphas, bands = pwp.get_band_data(
-            generalised=generalised, nalpha=nalpha)
+        alphas, bands = pwp.get_band_data(generalised=generalised, nalpha=nalpha)
         bands = np.real(bands)
 
         variances = np.var(bands, axis=0) * self.N**2
         variance_lowest = variances[0]
         means = np.mean(bands, axis=0)
 
-        mask_big_jump = np.diff(means) > 0.2
+        mask_big_jump = np.diff(means) > 0.5
         idxs = np.arange(len(mask_big_jump))[mask_big_jump]
         idxs += 1
 
@@ -136,11 +137,12 @@ class DisorderedClassicFiniteSWP1D(
             """
             # Define the color transitions for the blue-to-white and white-to-red gradient
             colors = [
-                (0.0, (0.9, 0.9, 1.0)),  # Very light blue (near-white)
-                (0.5, (0.0, 0.0, 1.0)),  # Blue
+                (0.0, (0.85, 0.85, 1.0)),  # Very light blue (near-white)
+                # (0.5, (0.0, 0.0, 1.0)),  # Blue
+                # (0.6, (0.5, 0.0, 0.5)),  # Purple at the transition point
                 # (0.5, (1.0, 1.0, 1.0)),  # White at the transition point
-                # (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
-                (0.5, (0.0, 0.0, 1.0)),  # Blue
+                (0.3, (0.0, 0.0, 1.0)),  # Blue
+                (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
                 (1.0, (1.0, 0.0, 0.0)),  # Red
             ]
 
@@ -163,8 +165,7 @@ class DisorderedClassicFiniteSWP1D(
                     norm_value = np.where(
                         log_v <= log_midpoint,
                         (log_v - log_vmin) / (log_midpoint - log_vmin) * 0.5,
-                        0.5 + (log_v - log_midpoint) /
-                        (log_vmax - log_midpoint) * 0.5,
+                        0.5 + (log_v - log_midpoint) / (log_vmax - log_midpoint) * 0.5,
                     )
                     return np.ma.masked_array(norm_value)
 
@@ -177,22 +178,24 @@ class DisorderedClassicFiniteSWP1D(
         if only_background:
             idxs = np.insert(idxs, 0, 0)
             idxs = np.append(idxs, -1)
+
             for i in range(len(idxs) - 1):
-                means_sel = means[idxs[i]: idxs[i + 1]]
+                means_sel = means[idxs[i] : idxs[i + 1]]
+                if len(means_sel) == 0:
+                    continue
                 X, Y = np.meshgrid(
                     means_sel,
                     np.array(
-                        [kwargs.get("vlims", [0, 1])[0],
-                         kwargs.get("vlims", [0, 1])[1]]
+                        [kwargs.get("vlims", [0, 1])[0], kwargs.get("vlims", [0, 1])[1]]
                     ),
                 )
                 Z = np.ones_like(Y, dtype=float)
                 for j in range(Z.shape[0]):
-                    Z[j, :] = variances_trans[idxs[i]: idxs[i + 1]]
+                    Z[j, :] = variances_trans[idxs[i] : idxs[i + 1]]
 
                 cmap, norm = custom_colormap_with_lognorm(
                     variance_lowest,
-                    vmin=np.min(variances_trans) + 1e-14,
+                    vmin=1e-17,
                     vmax=np.max(variances_trans),
                 )
                 pcm = ax.pcolormesh(

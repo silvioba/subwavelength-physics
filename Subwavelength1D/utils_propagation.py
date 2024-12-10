@@ -45,23 +45,32 @@ def propagation_matrix_single(
                 ckl * ckl - (1 / delta) * skl * sks,
                 (delta / k) * cks * skl + (1 / k) * ckl * sks,
             ],
-            [(-k / delta) * cks * skl + k * ckl *
-             sks, ckl * cks - delta * skl * sks],
+            [(-k / delta) * cks * skl + k * ckl * sks, ckl * cks - delta * skl * sks],
         ]
     )
 
 
-def propagation_matrix_block(block: Tuple[List[int | float]], k: int | float, delta: int | float = 1e-3, subwavelength: bool = True) -> np.ndarray:
+def propagation_matrix_block(
+    block: Tuple[List[int | float]],
+    k: int | float,
+    delta: int | float = 1e-3,
+    subwavelength: bool = True,
+) -> np.ndarray:
     mat = np.eye(2)
     ll, ss = block
     for i in range(len(ll)):
-        mat = propagation_matrix_single(
-            ll[i], ss[i], k, delta, subwavelength) @ mat
+        mat = propagation_matrix_single(ll[i], ss[i], k, delta, subwavelength) @ mat
     return mat
 
 
-def propagation_matrix_block_function(block: Tuple[List[int | float]], delta: int | float = 1e-3, subwavelength: bool = True) -> Callable[[int | float], np.ndarray]:
-    return lambda k: propagation_matrix_block(block, k, delta=delta, subwavelength=subwavelength)
+def propagation_matrix_block_function(
+    block: Tuple[List[int | float]],
+    delta: int | float = 1e-3,
+    subwavelength: bool = True,
+) -> Callable[[int | float], np.ndarray]:
+    return lambda k: propagation_matrix_block(
+        block, k, delta=delta, subwavelength=subwavelength
+    )
 
 
 def plot_propagation_eigenvalues(
@@ -73,6 +82,8 @@ def plot_propagation_eigenvalues(
     semilogy=True,
     space_from_end=1,
     subwavelength=False,
+    only_large=False,
+    color=None,
 ):
     """
     Plots the eigenvaues of a propagation matrix
@@ -89,7 +100,7 @@ def plot_propagation_eigenvalues(
     if ax is None:
         fig, ax = plt.subplots(1, 1)
     ks = np.linspace(k_min, k_max, n_pts)
-    eves = np.zeros((len(ks), 2), dtype=complex)
+    eves = np.zeros((len(ks), 2 if not only_large else 1), dtype=complex)
     for i, k in enumerate(ks):
         fswp.set_params(
             k_in=np.ones(fswp.N) * k,
@@ -102,8 +113,18 @@ def plot_propagation_eigenvalues(
                 space_from_end=space_from_end, subwavelength=subwavelength
             )
         )
-
-        eves[i] = np.sort(np.abs(D))
-    ax.semilogy(ks, np.abs(eves[:, 0]), "b-")
-    ax.semilogy(ks, np.abs(eves[:, 1]), "r-")
+        if only_large:
+            eves[i] = D[np.argmax(np.abs(D))]
+        else:
+            eves[i] = np.sort(np.abs(D))
+    if color and only_large:
+        assert len(color) == 1
+        ax.semilogy(ks, np.abs(eves[:, 0]), color[0])
+    elif color and not only_large:
+        assert len(color) == 2
+        ax.semilogy(ks, np.abs(eves[:, 0]), color[0])
+        ax.semilogy(ks, np.abs(eves[:, 1]), color[1])
+    else:
+        ax.semilogy(ks, np.abs(eves[:, 0]), "b-")
+        ax.semilogy(ks, np.abs(eves[:, 1]), "r-")
     return ax

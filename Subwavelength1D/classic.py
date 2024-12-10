@@ -88,7 +88,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         return V**2 @ L @ C
 
     def get_greens_matrix(self, k):
-        return np.linalg.inv(self.get_generalised_capacitance_matrix()-k*np.eye(self.N))
+        return np.linalg.inv(
+            self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
+        )
 
     def compute_propagation_matrix(
         self, space_from_end=1, subwavelength=True
