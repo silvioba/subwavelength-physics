@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sci
 
 import copy
 from typing import Literal, Callable, Tuple, Self, List
@@ -115,7 +116,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         if (
@@ -124,7 +126,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(
+                    v_out, complex) else float)
                 * v_in
             )
 
@@ -150,6 +153,9 @@ class FiniteSWP1D(SWP1D):
 
     def get_generalised_capacitance_matrix(self) -> np.ndarray:
         raise NotImplementedError
+
+    def get_greens_matrix(self, k: int | float) -> np.ndarray:
+        return np.linalg.inv(self.get_generalised_capacitance_matrix()-k*np.eye(self.N))
 
     def get_sorted_eigs_capacitance_matrix(
         self, generalised=True, sorting: Literal["real", "abs"] = "real"
@@ -223,7 +229,8 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         if (
@@ -232,7 +239,8 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(
+                    v_out, complex) else float)
                 * v_in
             )
 
@@ -254,3 +262,61 @@ class PeriodicSWP1D(SWP1D):
 
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         raise NotImplementedError
+
+    def get_band_data(
+        self, generalised=True, nalpha=100
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the band data of the capacitance matrix
+
+        Args:
+            generalised (bool, optional): doesnt work yet. Defaults to False.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
+
+        Returns:
+            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
+            np.ndarray: (nalpha, self.N) array with band data
+        """
+        alphas = np.linspace(-np.pi, np.pi, nalpha)
+
+        C = self.get_generalised_capacitance_matrix(
+        ) if generalised else self.get_capacitance_matrix()
+
+        bands = np.zeros((nalpha, self.N), dtype=complex)
+        for i, alpha in enumerate(alphas):
+            D, S = np.linalg.eig(C(alpha))
+            bands[i, :] = np.sort(np.real(D))
+
+        return alphas, bands
+
+    def plot_band_functions(self, generalised=True, real=True, nalpha=100, figax=None) -> Tuple:
+        """
+        Plots the band functions of the capacitance matrix
+
+        Args:
+            generalised (bool, optional): doesnt work yet. Defaults to False.
+            real (bool, optional): If True, plots the real part of the bands. If False traces the bands in the complex plane. Defaults to True.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
+            figax (_type_, optional): Tuple (fig,ax) on which to plot. None means do a new plot. Defaults to None.
+
+        Returns:
+            Tuple: fig, ax matplotlib
+        """
+
+        alphas, bands = self.get_band_data(generalised, nalpha)
+        if figax is None:
+            fig, ax = plt.subplots(figsize=settings.figure_size)
+        else:
+            fig, ax = figax
+        if real:
+            bands = np.real(bands)
+            ax.plot(alphas, bands, "k-")
+            ax.set_xticks([-np.pi, 0, np.pi], [r"$-\pi$", r"$0$", r"$\pi$"])
+            # ax.set_xlabel("Site index $i$")
+            ax.set_ylabel(r"$\lambda_i$")
+        else:
+            sct = ax.scatter(
+                np.real(bands), np.imag(bands), marker=".", c=alphas, cmap="twilight_shifted"
+            )
+            fig.colorbar(sct, ax=ax)
+        return fig, ax
