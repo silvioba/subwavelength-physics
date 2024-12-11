@@ -68,10 +68,13 @@ class SWP1D:
         self.v_out = v_out
 
         self.delta = delta
-        self.omega = omega
 
-        if self.omega:
-            self.set_omega(self.omega)
+        self.omega = None
+        self.k_in = None
+        self.k_out = None
+
+        if omega:
+            self.set_omega(omega)
         else:
             self.k_in, self.k_in = None, None
 
@@ -249,7 +252,7 @@ class FiniteSWP1D(SWP1D):
         if v_in is not None:
             assert len(v_in) == N, "The l of v_in array must be equal to N"
 
-        super().__init__(l, s, v_in, v_out, delta, omega, uin, duin)
+        super().__init__(N, l, s, v_in, v_out, delta, omega, uin, duin)
 
     def __str__(self):
         return f"One Dimensional Finite system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}."
@@ -370,7 +373,17 @@ class PeriodicSWP1D(SWP1D):
         if v_in is not None:
             assert len(v_in) == N, "The l of v_in array must be equal to N"
 
-        super().__init__(l, s, v_in, v_out, delta, omega, uin, duin)
+        super().__init__(
+            N=N,
+            l=l,
+            s=s,
+            v_in=v_in,
+            v_out=v_out,
+            delta=delta,
+            omega=omega,
+            uin=uin,
+            duin=duin,
+        )
 
     def __str__(self):
         return f"One Dimensional Periodic system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}."

@@ -21,7 +21,7 @@ plt.rcParams.update(settings.matplotlib_params)
 
 
 def plot_variance_band_functions(
-    self,
+    dwp: disordered.DisorderedClassicFiniteSWP1D,
     s_N: float = 1,
     nalpha: int = 100,
     ax: Axes | None = None,
@@ -44,11 +44,11 @@ def plot_variance_band_functions(
     Returns:
         Axes: Matplotlib Axes object with the plot.
     """
-    pwp = classic.convert_finite_into_periodic(self, s_N=s_N)
+    pwp = classic.convert_finite_into_periodic(dwp, s_N=s_N)
     alphas, bands = pwp.get_band_data(generalised=generalised, nalpha=nalpha)
     bands = np.real(bands)
 
-    variances = np.var(bands, axis=0) * self.N**2
+    variances = np.var(bands, axis=0) * dwp.N**2
     variance_lowest = variances[0]
     means = np.mean(bands, axis=0)
 
@@ -385,7 +385,7 @@ def plot_defect_offshoot(
     for ax in axes:
         ax.set_xlabel("Positive defect $\\eta$")
     axes[0].set_ylabel("Defect eigenvalues")
-    return fig, axes
+    return axes
 
 
 def plot_variance_density_histogram(
