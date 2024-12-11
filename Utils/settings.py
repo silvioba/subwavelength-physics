@@ -15,5 +15,6 @@ class settings:
     figure_width = 6.4
     figure_height = 4.8
     figure_size = (figure_width, figure_height)
+    figure_sizeh = (figure_width / 2, figure_height / 2)
 
     figure_params = {"bbox_inches": "tight"}

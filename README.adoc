@@ -11,14 +11,25 @@ repository are:
 * Silvio Barandun (silvio.barandun at sam.math.ethz.ch)
 * Alexander Uhlmann (alexander.uhlmann at sam.math.ethz.ch)
 
+=== Scientific backgrounds
+This code builds mainly on the following publications:
+
+One dimension::
+Finite systems::: [1] F. Feppon, Z. Cheng, and H. Ammari, “Subwavelength Resonances in One-Dimensional High-Contrast Acoustic Media,” SIAM Journal on Applied Mathematics, vol. 83, no. 2, pp. 625–665, Apr. 2023, doi: 10.1137/22m1503841.
+
+Periodic systems::: [2] H. Ammari, S. Barandun, J. Cao, and F. Feppon, “Edge Modes in Subwavelength Resonators in One Dimension,” Multiscale Modeling &amp; Simulation, vol. 21, no. 3, pp. 964–992, Jul. 2023, doi: 10.1137/23m1549419.
+
+Subsequent publications include
+
+
 === Project Structure
 ----
 ├─ Subwavelength1D          <- One dimensional systems
-|   ├─ classic.py         <- Classic wave propagation
-|   ├─ disordered.py         <- Subclass of classic with extra functions for disordered
+|   ├─ classic.py           <- Classic wave propagation
+|   ├─ disordered.py        <- Subclass of classic with extra functions for disordered
 
 
 ----
 
 === Coding guidelines
-1. Use numpy docstrings
+1. Use google docstrings
