@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
 from typing import Literal, Callable, Tuple, Self, List, override
+import itertools
 
 from Utils.settings import settings as settings
 
@@ -55,6 +56,27 @@ class DisorderedCommon:
         return cls.from_blocks(
             blocks=blocks,
             idxs=np.random.choice(len(blocks), n_reps, p=weights),
+            **params,
+        )
+
+    @classmethod
+    def from_fibonacci_tiling(
+        cls,
+        blocks: List[Tuple[List[int | float]]],
+        n_tiles: int,
+        **params,
+    ):
+        replacement_dict = {
+            0: [0, 1],
+            1: [0],
+        }
+        tiling = [1]
+        for i in range(n_tiles):
+            tiling = list(itertools.chain.from_iterable(
+                [replacement_dict[x] for x in tiling]))
+        return cls.from_blocks(
+            blocks=blocks,
+            idxs=tiling,
             **params,
         )
 
