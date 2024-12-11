@@ -195,8 +195,8 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         C0 += np.diag(d1) + np.diag(d2, 1) + np.diag(d2, -1)
 
         def C(alpha) -> np.ndarray:
-            if not -np.pi <= alpha < np.pi:
-                raise ValueError("alpha must be in [-pi, pi)")
+            if not -np.pi <= alpha <= np.pi:
+                raise ValueError(f"alpha must be in [-pi, pi), you provided {alpha}")
             C0[0, -1] += -np.exp(-1j * alpha) / self.s[-1]
             C0[-1, 0] += -np.exp(1j * alpha) / self.s[-1]
             return C0
