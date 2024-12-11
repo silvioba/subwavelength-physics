@@ -4,6 +4,7 @@ from Subwavelength1D.swp import (
     PeriodicSWP1D,
 )
 
+
 import Subwavelength1D.utils_propagation as utils_propagation
 
 import matplotlib.pyplot as plt
@@ -12,6 +13,8 @@ from matplotlib.colors import LinearSegmentedColormap, LogNorm
 from matplotlib.axes import Axes
 
 from typing import Literal, Callable, Tuple, Self, List, override
+
+import copy
 
 from Utils.settings import settings
 
@@ -41,6 +44,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         return super().__str__() + "\nPhysics:      Classic system"
 
     def set_params(self, **params):
+
         for key, val in params.items():
             if hasattr(self, key):
                 setattr(self, key, val)
@@ -280,6 +284,7 @@ def convert_periodic_into_finite(
     Returns:
         ClassicFiniteSWP1D: classical finite subwavelength wave problem with the same properties
     """
+    periodic_problem = copy.deepcopy(periodic_problem)
     return ClassicFiniteSWP1D(
         N=periodic_problem.N * i,
         l=np.concatenate([periodic_problem.l for _ in range(i)]),

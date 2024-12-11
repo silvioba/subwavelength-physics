@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sci
 
 import copy
 from typing import Literal, Callable, Tuple, Self, List
@@ -57,6 +58,9 @@ class SWP1D:
         self.N = N
         self.l = l
         self.s = s
+        self.N = len(l)
+        self.set_geometry(l, s)
+
         self.v_in = v_in
         self.v_out = v_out
 
@@ -70,6 +74,10 @@ class SWP1D:
 
         self.uin = uin
         self.duin = duin
+
+    def set_geometry(self, l: np.ndarray | float, s: np.ndarray | float):
+        self.l = l.astype(float)
+        self.s = s.astype(float)
 
         self.L = np.sum(self.l) + np.sum(self.s)
         # ds is the array with the distances between the interesting points
@@ -123,22 +131,36 @@ class SWP1D:
         dp_perturbed = copy.deepcopy(self)
         perturb_array: np.array = None
         if perturb_param == "spacing":
-            perturb_array = dp_perturbed.s
+            perturb_array = dp_perturbed.s.copy()
         elif perturb_param == "sizes":
-            perturb_array = dp_perturbed.l
+            perturb_array = dp_perturbed.l.copy()
         elif perturb_param == "material":
-            perturb_array = dp_perturbed.v_in
+            perturb_array = dp_perturbed.v_in.copy()
 
         if p_sampling == "uniform":
             perturbation = np.random.uniform(-p, p, len(perturb_array))
-            perturb_array[:] += perturbation
+            perturb_array += perturbation
         elif p_sampling == "positive":
             perturbation = np.random.uniform(0, p, len(perturb_array))
-            perturb_array[:] += perturbation
+            perturb_array += perturbation
         elif p_sampling == "loguniform":
             perturbation = np.random.uniform(10**-p, 10**p, len(perturb_array))
-            perturb_array[:] *= perturbation
+            perturb_array *= perturbation
+
+        if perturb_param == "spacing":
+            dp_perturbed.set_geometry(dp_perturbed.l, perturb_array)
+        elif perturb_param == "sizes":
+            dp_perturbed.set_geometry(perturb_array, dp_perturbed.s)
+        elif perturb_param == "material":
+            dp_perturbed.v_in = perturb_array
+
         return dp_perturbed
+
+    def plot_geometry(self):
+        fig, ax = plt.subplots()
+        for xs in self.xiCol:
+            ax.plot(xs, np.ones_like(xs), c="k")
+        return fig, ax
 
 
 class FiniteSWP1D(SWP1D):
@@ -237,6 +259,11 @@ class FiniteSWP1D(SWP1D):
 
     def get_generalised_capacitance_matrix(self) -> np.ndarray:
         raise NotImplementedError
+
+    def get_greens_matrix(self, k: int | float) -> np.ndarray:
+        return np.linalg.inv(
+            self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
+        )
 
     def get_sorted_eigs_capacitance_matrix(
         self,
@@ -353,3 +380,70 @@ class PeriodicSWP1D(SWP1D):
 
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         raise NotImplementedError
+
+    def get_band_data(
+        self, generalised=True, nalpha=100
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the band data of the capacitance matrix
+
+        Args:
+            generalised (bool, optional): doesnt work yet. Defaults to False.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
+
+        Returns:
+            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
+            np.ndarray: (nalpha, self.N) array with band data
+        """
+        alphas = np.linspace(-np.pi, np.pi, nalpha)
+
+        C = (
+            self.get_generalised_capacitance_matrix()
+            if generalised
+            else self.get_capacitance_matrix()
+        )
+
+        bands = np.zeros((nalpha, self.N), dtype=complex)
+        for i, alpha in enumerate(alphas):
+            D, S = np.linalg.eig(C(alpha))
+            bands[i, :] = np.sort(np.real(D))
+
+        return alphas, bands
+
+    def plot_band_functions(
+        self, generalised=True, real=True, nalpha=100, figax=None
+    ) -> Tuple:
+        """
+        Plots the band functions of the capacitance matrix
+
+        Args:
+            generalised (bool, optional): doesnt work yet. Defaults to False.
+            real (bool, optional): If True, plots the real part of the bands. If False traces the bands in the complex plane. Defaults to True.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
+            figax (_type_, optional): Tuple (fig,ax) on which to plot. None means do a new plot. Defaults to None.
+
+        Returns:
+            Tuple: fig, ax matplotlib
+        """
+
+        alphas, bands = self.get_band_data(generalised, nalpha)
+        if figax is None:
+            fig, ax = plt.subplots(figsize=settings.figure_size)
+        else:
+            fig, ax = figax
+        if real:
+            bands = np.real(bands)
+            ax.plot(alphas, bands, "k-")
+            ax.set_xticks([-np.pi, 0, np.pi], [r"$-\pi$", r"$0$", r"$\pi$"])
+            # ax.set_xlabel("Site index $i$")
+            ax.set_ylabel(r"$\lambda_i$")
+        else:
+            sct = ax.scatter(
+                np.real(bands),
+                np.imag(bands),
+                marker=".",
+                c=alphas,
+                cmap="twilight_shifted",
+            )
+            fig.colorbar(sct, ax=ax)
+        return fig, ax
