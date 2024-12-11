@@ -20,6 +20,88 @@ import copy
 plt.rcParams.update(settings.matplotlib_params)
 
 
+def plot_variance_band_functions(
+    self,
+    s_N: float = 1,
+    nalpha: int = 100,
+    ax: Axes | None = None,
+    semilogy: bool = False,
+    generalised: bool = False,
+    only_background: bool = False,
+    **kwargs,
+):
+    """
+    Plots the variance of band functions.
+
+    Args:
+        s_N (float, optional): Scaling factor for periodic conversion. Defaults to 1.
+        nalpha (int, optional): Number of alpha values to sample. Defaults to 100.
+        ax (Axes | None, optional): Matplotlib Axes object to plot on. Defaults to None.
+        semilogy (bool, optional): Whether to use a logarithmic scale for the y-axis. Defaults to False.
+        generalised (bool, optional): Whether to use the generalised capacitance matrix. Defaults to False.
+        only_background (bool, optional): Whether to plot only the background. Defaults to False.
+
+    Returns:
+        Axes: Matplotlib Axes object with the plot.
+    """
+    pwp = classic.convert_finite_into_periodic(self, s_N=s_N)
+    alphas, bands = pwp.get_band_data(generalised=generalised, nalpha=nalpha)
+    bands = np.real(bands)
+
+    variances = np.var(bands, axis=0) * self.N**2
+    variance_lowest = variances[0]
+    means = np.mean(bands, axis=0)
+
+    mask_big_jump = np.diff(means) > 0.5
+    idxs = np.arange(len(mask_big_jump))[mask_big_jump]
+    idxs += 1
+
+    variances_trans = variances
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    if only_background:
+        idxs = np.insert(idxs, 0, 0)
+        idxs = np.append(idxs, -1)
+
+        for i in range(len(idxs) - 1):
+            means_sel = means[idxs[i] : idxs[i + 1]]
+            if len(means_sel) == 0:
+                continue
+            X, Y = np.meshgrid(
+                means_sel,
+                np.array(
+                    [kwargs.get("vlims", [0, 1])[0], kwargs.get("vlims", [0, 1])[1]]
+                ),
+            )
+            Z = np.ones_like(Y, dtype=float)
+            for j in range(Z.shape[0]):
+                Z[j, :] = variances_trans[idxs[i] : idxs[i + 1]]
+
+            cmap, norm = custom_colormap_with_lognorm(
+                variance_lowest,
+                vmin=1e-17,
+                vmax=np.max(variances_trans),
+            )
+            pcm = ax.pcolormesh(
+                X,
+                Y,
+                Z,
+                norm=(norm if semilogy else None),
+                cmap=cmap,
+                shading="nearest",
+            )
+        if kwargs.get("colorbar"):
+            plt.colorbar(pcm, ax=ax, extend="max")
+
+    else:
+        if semilogy:
+            ax.semilogy(means, variances, "k.")
+        else:
+            ax.plot(means, variances, "k.")
+    return ax
+
+
 def custom_colormap_with_lognorm(a, vmin, vmax, include_white=False):
     """
     Generates a custom colormap with graded red above `a` and graded blue below `a`,
