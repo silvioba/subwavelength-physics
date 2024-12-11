@@ -3,7 +3,7 @@ import numpy as np
 import copy
 from typing import Literal, Callable, Tuple, Self, List
 
-from Subwavelength1D.utils_general import *
+from Utils.utils_general import *
 
 
 class SWP1D:

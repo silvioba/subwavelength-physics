@@ -18,9 +18,9 @@ from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
 from typing import Literal, Callable, Tuple, Self, List, override
 
-from Subwavelength1D.settings import settings
+from Utils.settings import settings as settings
 
-from Subwavelength1D.utils_general import *
+from Utils.utils_general import *
 
 plt.rcParams.update(settings.matplotlib_params)
 
