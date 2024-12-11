@@ -6,6 +6,9 @@ from typing import Literal, Callable, Tuple, Self, List
 
 import Utils.utils_general as utils
 
+import matplotlib.pyplot as plt
+import Utils.settings as settings
+
 
 class SWP1D:
     """
@@ -409,41 +412,3 @@ class PeriodicSWP1D(SWP1D):
             bands[i, :] = np.sort(np.real(D))
 
         return alphas, bands
-
-    def plot_band_functions(
-        self, generalised=True, real=True, nalpha=100, figax=None
-    ) -> Tuple:
-        """
-        Plots the band functions of the capacitance matrix
-
-        Args:
-            generalised (bool, optional): doesnt work yet. Defaults to False.
-            real (bool, optional): If True, plots the real part of the bands. If False traces the bands in the complex plane. Defaults to True.
-            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
-            figax (_type_, optional): Tuple (fig,ax) on which to plot. None means do a new plot. Defaults to None.
-
-        Returns:
-            Tuple: fig, ax matplotlib
-        """
-
-        alphas, bands = self.get_band_data(generalised, nalpha)
-        if figax is None:
-            fig, ax = plt.subplots(figsize=settings.figure_size)
-        else:
-            fig, ax = figax
-        if real:
-            bands = np.real(bands)
-            ax.plot(alphas, bands, "k-")
-            ax.set_xticks([-np.pi, 0, np.pi], [r"$-\pi$", r"$0$", r"$\pi$"])
-            # ax.set_xlabel("Site index $i$")
-            ax.set_ylabel(r"$\lambda_i$")
-        else:
-            sct = ax.scatter(
-                np.real(bands),
-                np.imag(bands),
-                marker=".",
-                c=alphas,
-                cmap="twilight_shifted",
-            )
-            fig.colorbar(sct, ax=ax)
-        return fig, ax
