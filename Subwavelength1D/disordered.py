@@ -68,7 +68,7 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
             idxs (List[int]): orders in which to use the blocks
 
         Returns:
-            Self: OneDimensionalClassicDisorderedFiniteSWLProblem
+            Self: DisorderedClassicFiniteSWP1D instance with the specified blocks
         """
         l = []
         s = []
@@ -102,7 +102,7 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
             seed (int, optional): Random seed for reproducibility. Defaults to 42.
 
         Returns:
-            Self: _description_
+            Self: DisorderedClassicFiniteSWP1D instance with randomly picked blocks
         """
         if weights:
             assert len(weights) == len(
@@ -118,9 +118,22 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
         )
 
     def get_block_list(self):
+        """Get the list of len(self.idxs) containing the corresponding blocks, as specified by self.idx.
+
+        Returns:
+            List: 
+        """
         return [self.blocks[idx] for idx in self.idxs]
 
     def get_block_index_at_x(self, x):
+        """Get the index idx such that x lies in the interval of the idx-th block.
+
+        Args:
+            x (float): Space coordinate
+
+        Returns:
+            int: Corresponding index
+        """
         assert x >= self.xi[0] and x <= self.xi[-1]
         endpoint = 0
         for i, block in enumerate(self.get_block_list()):
@@ -129,10 +142,26 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
                 return i
 
     def resonators_before_index(self, idx):
-        assert 0 <= idx < self.N
+        """Get the total number of resonators BEFORE the block of specified index. Note that blocks may recall multiple resonators.
+
+        Args:
+            idx (int): Index specifying the block of interest
+
+        Returns:
+            int: Number of resonators before the block
+        """
+        assert 0 <= idx < len(self.idxs)
         return sum([len(block[0]) for block in self.get_block_list()[:idx]])
 
     def get_block_index_at_resonator(self, j):
+        """For a given resonator index j, get the index of the block containing the resonator.
+
+        Args:
+            j (int): Index specifying the resonator of interest
+
+        Returns:
+            int: Index of the block containing said resonator
+        """
         assert 0 <= j < self.N
         res_idx = 0
         for i, block in enumerate(self.get_block_list()):
@@ -141,6 +170,14 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
                 return i
 
     def get_block_bounds(self, idx):
+        """For a given block index, get the bounds of the block in terms of space coordinates.
+
+        Args:
+            idx (int): Index specifying the block of interest
+
+        Returns:
+            (float, float): left and right space bounds of said block
+        """
         assert 0 <= idx < len(self.idxs)
         left = 0
         right = 0
