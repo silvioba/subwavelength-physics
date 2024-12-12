@@ -1,10 +1,8 @@
 import numpy as np
 
-from Subwavelength1D.classic import (
-    ClassicFiniteSWP1D,
-    ClassicFiniteSWP1D,
-    convert_finite_into_periodic,
-)
+from Subwavelength1D.classic import ClassicFiniteSWP1D
+
+from Subwavelength1D.nonreciprocal import NonReciprocalFiniteSWP1D, NonReciprocalPeriodicSWP1D
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
@@ -16,6 +14,10 @@ from Utils.settings import settings as settings
 from Utils.utils_general import *
 
 plt.rcParams.update(settings.matplotlib_params)
+
+
+class DisorderedCommon:
+    pass
 
 
 class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
@@ -186,3 +188,7 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
             if i == idx:
                 return left, right
             left = right
+
+
+class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D):
+    pass
