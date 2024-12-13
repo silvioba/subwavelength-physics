@@ -295,6 +295,7 @@ class FiniteSWP1D(SWP1D):
     def plot_eigenvalues(
         self,
         generalised=True,
+        real=True,
         colorfunc=None,
         ax=None,
     ):
@@ -311,7 +312,7 @@ class FiniteSWP1D(SWP1D):
         else:
             D, _ = np.linalg.eigh(self.get_capacitance_matrix())
 
-        return utils.plot_eigenvalues(D, colorfunc, ax)
+        return utils.plot_eigenvalues(D, colorfunc, real, ax)
 
 
 class PeriodicSWP1D(SWP1D):
@@ -417,7 +418,7 @@ class PeriodicSWP1D(SWP1D):
 
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
-            D, S = np.linalg.eig(C(alpha))
-            bands[i, :] = np.sort(np.real(D))
+            D, S = utils.sort_by_eva_real(*np.linalg.eig(C(alpha)))
+            bands[i, :] = D
 
         return alphas, bands

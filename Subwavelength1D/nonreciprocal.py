@@ -62,7 +62,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray:
         """
-
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
         upper_diag = - self.gammas[:-1] * self.l[:-1] / (
             self.s * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
         lower_diag = self.gammas[1:] * self.l[1:] / (
@@ -137,7 +137,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         super().__init__(**pars)
         if isinstance(gammas, (int, float)):
             gammas = np.ones(self.N) * gammas
-        self.gammas = gammas
+        self.gammas = np.array(gammas, dtype=float)
 
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
@@ -147,23 +147,30 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
             Callable[[float], np.ndarray]: map alpha -> C^alpha
         """
 
-        upper_diag = - self.gammas[:-1] * self.l[:-1] / (
-            self.s[:-1] * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
-        lower_diag = self.gammas[1:] * self.l[1:] / (
-            self.s[:-1] * (1-np.exp(self.gammas[1:]*self.l[1:])))
+        if self.N == 1:
+            C0 = np.array([[
+                self.gammas[0] * self.l[0] * (
+                    1/(self.s[0]*(1-np.exp(-self.gammas[0] * self.l[0]))) - 1/(self.s[-1]*(1-np.exp(self.gammas[0]*self.l[0]))))
+            ]])
+        else:
+            upper_diag = - self.gammas[:-1] * self.l[:-1] / (
+                self.s[:-1] * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
+            lower_diag = self.gammas[1:] * self.l[1:] / (
+                self.s[:-1] * (1-np.exp(self.gammas[1:]*self.l[1:])))
 
-        first_coef = self.gammas[0] * self.l[0] * (
-            1/(self.s[0]*(1-np.exp(-self.gammas[0] * self.l[0]))) - 1/(self.s[-1]*(1-np.exp(self.gammas[0]*self.l[0]))))
-        last_coef = self.gammas[-1] * self.l[-1] * (
-            1/(self.s[-1]*(1-np.exp(-self.gammas[-1] * self.l[-1]))) - 1/(self.s[-2]*(1-np.exp(self.gammas[-1]*self.l[-1]))))
+            first_coef = self.gammas[0] * self.l[0] * (
+                1/(self.s[0]*(1-np.exp(-self.gammas[0] * self.l[0]))) - 1/(self.s[-1]*(1-np.exp(self.gammas[0]*self.l[0]))))
+            last_coef = self.gammas[-1] * self.l[-1] * (
+                1/(self.s[-1]*(1-np.exp(-self.gammas[-1] * self.l[-1]))) - 1/(self.s[-2]*(1-np.exp(self.gammas[-1]*self.l[-1]))))
 
-        center_diag = self.gammas[1:-1] * self.l[1:-1] * (
-            1/(self.s[1:-1]*(1-np.exp(-self.gammas[1:-1] * self.l[1:-1]))) - 1/(self.s[0:-2]*(1-np.exp(self.gammas[1:-1]*self.l[1:-1]))))
+            center_diag = self.gammas[1:-1] * self.l[1:-1] * (
+                1/(self.s[1:-1]*(1-np.exp(-self.gammas[1:-1] * self.l[1:-1]))) - 1/(self.s[0:-2]*(1-np.exp(self.gammas[1:-1]*self.l[1:-1]))))
 
-        center_diag = np.concatenate([[first_coef], center_diag, [last_coef]])
+            center_diag = np.concatenate(
+                [[first_coef], center_diag, [last_coef]])
 
-        C0 = np.diag(center_diag) + np.diag(upper_diag, 1) + \
-            np.diag(lower_diag, -1)
+            C0 = np.diag(center_diag) + np.diag(upper_diag, 1) + \
+                np.diag(lower_diag, -1)
 
         C0 = C0.astype(complex)
 

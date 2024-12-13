@@ -123,6 +123,6 @@ def plot_eigenvalues(D, colorfunc=None, real=True, ax: Axes | None = None) -> Ax
             ax.scatter(np.real(D), np.imag(D), c=colorfunc(D), marker=".")
         else:
             ax.scatter(np.real(D), np.imag(D), c="black", marker=".")
-        ax.set_xlabel(r"$\Re lambda_i$")
-        ax.set_ylabel(r"$\Im lambda_i$")
+        ax.set_xlabel(r"$\Re \lambda_i$")
+        ax.set_ylabel(r"$\Im \lambda_i$")
     return ax

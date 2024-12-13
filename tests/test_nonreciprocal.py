@@ -33,6 +33,10 @@ class NonReciprocalTests(unittest.TestCase):
         ([1, 2, 3], [2, 3, 4], -2, False),
         ([1, 2, 3], [2, 3, 4], 0.3, True),
         ([1, 2, 3], [2, 3, 4], -1.5, True),
+        ([1], [2], 0.1, False),
+        ([1], [2], 0.1, True),
+        ([1, 2], [2, 3], 0.2, False),
+        ([1, 2], [2, 3], 0.2, True),
     ])
     def test_asymptotically_valid_capacitance_periodic(self, ls, ss, alpha, general):
         cp = ClassicPeriodicSWP1D(

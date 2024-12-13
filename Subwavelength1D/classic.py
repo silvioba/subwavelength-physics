@@ -88,7 +88,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray
         """
-
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
         d1 = np.concatenate(
             (
                 [1 / self.s[0]],
@@ -182,17 +182,23 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         Returns:
             Callable[[float], np.ndarray]: map alpha -> C^alpha
         """
-
-        d1 = np.concatenate(
-            (
-                [1 / self.s[0] + 1 / self.s[-1]],
-                1 / self.s[1:-1] + 1 / self.s[0:-2],
-                [1 / self.s[-1] + 1 / self.s[-2]],
+        if self.N == 1:
+            C0 = np.array([[
+                1/self.s[0] + 1/self.s[-1]
+            ]])
+        else:
+            d1 = np.concatenate(
+                (
+                    [1 / self.s[0] + 1 / self.s[-1]],
+                    1 / self.s[1:-1] + 1 / self.s[0:-2],
+                    [1 / self.s[-1] + 1 / self.s[-2]],
+                )
             )
-        )
-        d2 = -1 / self.s[:-1]
-        C0 = np.zeros((self.N, self.N), dtype=complex)
-        C0 += np.diag(d1) + np.diag(d2, 1) + np.diag(d2, -1)
+            d2 = -1 / self.s[:-1]
+            C0 = np.zeros((self.N, self.N), dtype=complex)
+            C0 += np.diag(d1) + np.diag(d2, 1) + np.diag(d2, -1)
+
+        C0 = C0.astype(complex)
 
         def C(alpha) -> np.ndarray:
             if not -np.pi <= alpha <= np.pi:

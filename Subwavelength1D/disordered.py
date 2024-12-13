@@ -129,7 +129,7 @@ class DisorderedCommon:
             left = right
 
 
-class DisorderedClassicFiniteSWP1D(DisorderedCommon, ClassicFiniteSWP1D):
+class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
     """
     A class representing a disordered classical finite subwavelength problem in 1D.
 
@@ -147,7 +147,7 @@ class DisorderedClassicFiniteSWP1D(DisorderedCommon, ClassicFiniteSWP1D):
     """
 
     def __init__(self, **params):
-        ClassicFiniteSWP1D.__init__(self, **params)
+        super().__init__(**params)
         self.idxs = None
         self.blocks = None
 
@@ -213,7 +213,7 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
     """
 
     def __init__(self, **params):
-        NonReciprocalFiniteSWP1D.__init__(self, **params)
+        super().__init__(**params)
         self.idxs = None
         self.blocks = None
 
@@ -251,3 +251,20 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
         c.__setattr__("idxs", idxs)
         c.__setattr__("blocks", blocks)
         return c
+
+    def plot_winding_regions(self, sN=None, ax=None, colors=None):
+        if colors is None:
+            colors = ["blue", "red", "green",
+                      "purple", "orange", "cyan", "magenta"]
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=settings.figure_size)
+
+        for i, block in enumerate(self.blocks):
+            ll, ss, gg = block
+            resonator = NonReciprocalPeriodicSWP1D(
+                N=len(ll), gammas=gg, l=ll, s=ss, v_in=1, v_out=1
+            )
+            alphas, bands = resonator.get_band_data()
+            for p in range(len(ll)):
+                ax.scatter(np.real(bands[:, p]), np.imag(
+                    bands[:, p]), c=colors[i])
