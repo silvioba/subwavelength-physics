@@ -230,7 +230,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         if (
@@ -239,7 +240,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(
+                    v_out, complex) else float)
                 * v_in
             )
 
@@ -293,14 +295,7 @@ class FiniteSWP1D(SWP1D):
     def plot_eigenvalues(
         self,
         generalised=True,
-        sorting: Literal[
-            "eve_middle_localization",
-            "eve_localization",
-            "eva_real",
-            "eva_imag",
-            "eve_abs",
-            "eva_first_val",
-        ] = "eva_real",
+        real=True,
         colorfunc=None,
         ax=None,
     ):
@@ -317,7 +312,7 @@ class FiniteSWP1D(SWP1D):
         else:
             D, _ = np.linalg.eigh(self.get_capacitance_matrix())
 
-        return utils.plot_eigenvalues(D, colorfunc, ax)
+        return utils.plot_eigenvalues(D, colorfunc, real, ax)
 
 
 class PeriodicSWP1D(SWP1D):
@@ -355,7 +350,8 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         if (
@@ -364,7 +360,8 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(
+                    v_out, complex) else float)
                 * v_in
             )
 
@@ -421,7 +418,7 @@ class PeriodicSWP1D(SWP1D):
 
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
-            D, S = np.linalg.eig(C(alpha))
-            bands[i, :] = np.sort(np.real(D))
+            D, S = utils.sort_by_eva_real(*np.linalg.eig(C(alpha)))
+            bands[i, :] = D
 
         return alphas, bands

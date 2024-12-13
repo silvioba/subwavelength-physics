@@ -1,10 +1,8 @@
 import numpy as np
 
-from Subwavelength1D.classic import (
-    ClassicFiniteSWP1D,
-    ClassicFiniteSWP1D,
-    convert_finite_into_periodic,
-)
+from Subwavelength1D.classic import ClassicFiniteSWP1D
+
+from Subwavelength1D.nonreciprocal import NonReciprocalFiniteSWP1D, NonReciprocalPeriodicSWP1D
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
@@ -18,69 +16,12 @@ from Utils.utils_general import *
 plt.rcParams.update(settings.matplotlib_params)
 
 
-class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
-    """
-    A class representing a disordered classical finite subwavelength problem in 1D.
-
-    This class extends the `ClassicFiniteSWP1D` class to handle disordered systems of resonators.
-    Attributes:
-        idxs (List[int] | None): Indices indicating the order in which to use the blocks.
-        blocks (List[Tuple[List[int | float]]] | None): Contains the blocks of resonators.
-    Methods:
-        from_finite_wave_problem(fwp):
-            Constructs an instance from a finite wave problem.
-        from_blocks(blocks, idxs, **params):
-            Constructs a finite classical system of disordered blocks of resonators.
-        from_blocks_random(blocks, n_reps, weights=None, seed=42, **params):
-            Constructs a finite classical system of disordered blocks of resonators by randomly picking blocks.
-    """
-
-    def __init__(self, **params):
-        super().__init__(**params)
-        self.idxs = None
-        self.blocks = None
-
-    def __str__(self):
-        return super().__str__()
-
-    @classmethod
-    def from_finite_wave_problem(cls, fwp):
-        """
-        Create an instance of the class from a finite wave problem.
-
-        Args:
-            fwp (FiniteWaveProblem): An instance of FiniteWaveProblem containing the necessary parameters.
-
-        Returns:
-            cls: An instance of the class with parameters initialized from the finite wave problem.
-        """
-        return cls(N=fwp.N, l=fwp.l, s=fwp.s, v_in=fwp.v_in)
-
+class DisorderedCommon:
     @classmethod
     def from_blocks(
         cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
     ) -> Self:
-        """
-        Constructs a finite classical system of disorded blocks of resonators
-
-        Args:
-            blocks (List[List[int  |  float]]): contains the blocks, the inner is given by ([l1,l2,l3], [s1,s2,s3])
-            idxs (List[int]): orders in which to use the blocks
-
-        Returns:
-            Self: DisorderedClassicFiniteSWP1D instance with the specified blocks
-        """
-        l = []
-        s = []
-        for idx in idxs:
-            ll, ss = blocks[idx]
-            l = l + ll
-            s = s + ss
-        s = s[:-1]
-        c = cls(N=len(l), l=np.array(l), s=np.array(s), **params)
-        c.__setattr__("idxs", idxs)
-        c.__setattr__("blocks", blocks)
-        return c
+        raise NotImplementedError
 
     @classmethod
     def from_blocks_random(
@@ -96,7 +37,7 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
 
 
         Args:
-            blocks (List[Tuple[List[int  |  float]]]): contains the blocks, the inner is given by ([l1,l2,l3], [s1,s2,s3])
+            blocks (List[Tuple[List[int  |  float]]]): contains the blocks, the inner is given by ([l1,l2,l3], [s1,s2,s3]) or ([l1,l2,...], [s1,s2,...], [g1,g2,...]) depeding on if the system is classic or nonreciprocal
             n_reps (int): total number of blocks in the final structure
             weights (List[float] | None, optional): probabilities to choose the blocks. If none the probabilities are uniform. Defaults to None.
             seed (int, optional): Random seed for reproducibility. Defaults to 42.
@@ -186,3 +127,144 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D):
             if i == idx:
                 return left, right
             left = right
+
+
+class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
+    """
+    A class representing a disordered classical finite subwavelength problem in 1D.
+
+    This class extends the `ClassicFiniteSWP1D` class to handle disordered systems of resonators.
+    Attributes:
+        idxs (List[int] | None): Indices indicating the order in which to use the blocks.
+        blocks (List[Tuple[List[int | float]]] | None): Contains the blocks of resonators.
+    Methods:
+        from_finite_wave_problem(fwp):
+            Constructs an instance from a finite wave problem.
+        from_blocks(blocks, idxs, **params):
+            Constructs a finite classical system of disordered blocks of resonators.
+        from_blocks_random(blocks, n_reps, weights=None, seed=42, **params):
+            Constructs a finite classical system of disordered blocks of resonators by randomly picking blocks.
+    """
+
+    def __init__(self, **params):
+        super().__init__(**params)
+        self.idxs = None
+        self.blocks = None
+
+    def __str__(self):
+        return super().__str__()
+
+    @classmethod
+    def from_finite_wave_problem(cls, fwp):
+        """
+        Create an instance of the class from a finite wave problem.
+
+        Args:
+            fwp (FiniteWaveProblem): An instance of FiniteWaveProblem containing the necessary parameters.
+
+        Returns:
+            cls: An instance of the class with parameters initialized from the finite wave problem.
+        """
+        return cls(N=fwp.N, l=fwp.l, s=fwp.s, v_in=fwp.v_in)
+
+    @classmethod
+    def from_blocks(
+        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+    ) -> Self:
+        """
+        Constructs a finite classical system of disorded blocks of resonators
+
+        Args:
+            blocks (List[List[int  |  float]]): contains the blocks, the inner is given by ([l1,l2,l3], [s1,s2,s3])
+            idxs (List[int]): orders in which to use the blocks
+
+        Returns:
+            Self: DisorderedClassicFiniteSWP1D instance with the specified blocks
+        """
+        l = []
+        s = []
+        for idx in idxs:
+            assert len(
+                blocks[idx]) == 2, "We expect each block to be a 2-tuple"
+            ll, ss = blocks[idx]
+            l = l + ll
+            s = s + ss
+        s = s[:-1]
+        c = cls(N=len(l), l=np.array(l), s=np.array(s), **params)
+        c.__setattr__("idxs", idxs)
+        c.__setattr__("blocks", blocks)
+        return c
+
+
+class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCommon):
+    """
+    A class representing a disordered nonreciprocal finite subwavelength problem in 1D.
+
+    This class extends the `NonReciprocalFiniteSWP1D` class to handle disordered systems of nonreciprocal resonators.
+    NOTE: for nonreciprocal systems each block is described by a 3-tuple ([l1,l2,...], [s1,s2,...], [g1,g2,...])
+    Attributes:
+        idxs (List[int] | None): Indices indicating the order in which to use the blocks.
+        blocks (List[Tuple[List[int | float]]] | None): Contains the blocks of resonators.
+    Methods:
+        from_blocks(blocks, idxs, **params):
+            Constructs a finite classical system of disordered blocks of resonators.
+        from_blocks_random(blocks, n_reps, weights=None, seed=42, **params):
+            Constructs a finite classical system of disordered blocks of resonators by randomly picking blocks.
+    """
+
+    def __init__(self, **params):
+        super().__init__(**params)
+        self.idxs = None
+        self.blocks = None
+
+    def __str__(self):
+        return super().__str__()
+
+    @classmethod
+    def from_blocks(
+        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+    ) -> Self:
+        """
+        Constructs a finite classical system of disorded blocks of resonators
+
+        Args:
+            blocks (List[List[int  |  float]]): contains the blocks, the inner is given by ([l1,l2,...], [s1,s2,...], [g1,g2,...])
+            idxs (List[int]): orders in which to use the blocks
+
+        Returns:
+            Self: DisorderedClassicFiniteSWP1D instance with the specified blocks
+        """
+        l = []
+        s = []
+        g = []
+        for idx in idxs:
+            assert len(
+                blocks[idx]) == 3, "We expect each block to be a 3-tuple"
+            ll, ss, gg = blocks[idx]
+            l = l + ll
+            s = s + ss
+            g = g + gg
+        s = s[:-1]
+        c = cls(
+            N=len(l), l=np.array(l), s=np.array(s), gammas=np.array(g), **params
+        )
+        c.__setattr__("idxs", idxs)
+        c.__setattr__("blocks", blocks)
+        return c
+
+    def plot_winding_regions(self, sN=None, ax=None, colors=None):
+        if colors is None:
+            colors = ["blue", "red", "green",
+                      "purple", "orange", "cyan", "magenta"]
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=settings.figure_size)
+
+        for i, block in enumerate(self.blocks):
+            ll, ss, gg = block
+            resonator = NonReciprocalPeriodicSWP1D(
+                N=len(ll), gammas=gg, l=ll, s=ss, v_in=1, v_out=1
+            )
+            alphas, bands = resonator.get_band_data()
+            for p in range(len(ll)):
+                ax.scatter(np.real(bands[:, p]), np.imag(
+                    bands[:, p]), c=colors[i])
