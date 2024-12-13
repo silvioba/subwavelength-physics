@@ -230,7 +230,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         if (
@@ -239,7 +240,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(
+                    v_out, complex) else float)
                 * v_in
             )
 
@@ -355,7 +357,8 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         if (
@@ -364,7 +367,8 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_out, complex)
         ):
             v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
+                np.ones(N, dtype=complex if isinstance(
+                    v_out, complex) else float)
                 * v_in
             )
 
