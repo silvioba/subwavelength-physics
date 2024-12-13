@@ -295,14 +295,6 @@ class FiniteSWP1D(SWP1D):
     def plot_eigenvalues(
         self,
         generalised=True,
-        sorting: Literal[
-            "eve_middle_localization",
-            "eve_localization",
-            "eva_real",
-            "eva_imag",
-            "eve_abs",
-            "eva_first_val",
-        ] = "eva_real",
         colorfunc=None,
         ax=None,
     ):

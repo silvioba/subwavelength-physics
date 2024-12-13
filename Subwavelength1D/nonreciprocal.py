@@ -148,9 +148,9 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         """
 
         upper_diag = - self.gammas[:-1] * self.l[:-1] / (
-            self.s * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
-        lower_diag = self.gammas[1:] * self.l[:1] / (
-            self.s * (1-np.exp(self.gammas[1:]*self.l[1:])))
+            self.s[:-1] * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
+        lower_diag = self.gammas[1:] * self.l[1:] / (
+            self.s[:-1] * (1-np.exp(self.gammas[1:]*self.l[1:])))
 
         first_coef = self.gammas[0] * self.l[0] * (
             1/(self.s[0]*(1-np.exp(-self.gammas[0] * self.l[0]))) - 1/(self.s[-1]*(1-np.exp(self.gammas[0]*self.l[0]))))
@@ -165,10 +165,12 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         C0 = np.diag(center_diag) + np.diag(upper_diag, 1) + \
             np.diag(lower_diag, -1)
 
+        C0 = C0.astype(complex)
+
         def C(alpha):
-            C0[0, -1] += np.exp(1j * alpha) * self.gammas[0] * self.l[0] / (
+            C0[0, -1] += np.exp(-1j * alpha) * self.gammas[0] * self.l[0] / (
                 self.s[-1] * (1-np.exp(self.gammas[0]*self.l[0])))
-            C0[-1, 0] += -np.exp(-1j * alpha) * self.gammas[-1] * self.l[-1] / (
+            C0[-1, 0] += -np.exp(1j * alpha) * self.gammas[-1] * self.l[-1] / (
                 self.s[-1] * (1-np.exp(-self.gammas[-1]*self.l[-1])))
             return C0
 

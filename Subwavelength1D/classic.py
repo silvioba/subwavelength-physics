@@ -186,8 +186,8 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         d1 = np.concatenate(
             (
                 [1 / self.s[0] + 1 / self.s[-1]],
-                1 / self.s[:-2] + 1 / self.s[1:-1],
-                [1 / self.s[-1] + 1 / self.s[0]],
+                1 / self.s[1:-1] + 1 / self.s[0:-2],
+                [1 / self.s[-1] + 1 / self.s[-2]],
             )
         )
         d2 = -1 / self.s[:-1]
