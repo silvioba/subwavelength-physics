@@ -116,7 +116,7 @@ class SWP1D:
 
     def get_material_matrix(self, inverted=False, perform_sqrt=False, return_only_list=False) -> np.ndarray:
         """
-        Get the material matrix such that VCu = \lambda u is a solution to the subwavelenth problem.
+        Get the material matrix such that :math:`VCu = \lambda u` is a solution to the subwavelength problem.
 
         Returns:
             np.ndarray: The material matrix.
