@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sci
 from Subwavelength1D.swp import (
     FiniteSWP1D,
     PeriodicSWP1D,
@@ -80,10 +81,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         N = 4 * i + 1
         return cls(N=N, l=1, s=np.array(i * [s1, s2] + i * [s2, s1]), **params)
 
-    @override
-    def get_capacitance_matrix(self) -> np.ndarray:
+    def __get_capacitance_diagonal(self) -> np.ndarray:
         """
-        Computes the capacitance matrix C from eq (1.13) in [1]. Only depends on the spacings between resonators.
+        Computes the diagonal of the capacitance matrix C from eq (1.13) in [1]. Only depends on the spacings between resonators.
 
         Returns:
             np.ndarray
@@ -96,7 +96,29 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
                 [1 / self.s[-1]],
             )
         )
+        return d1
+
+    def __get_capacitance_offdiagonal(self) -> np.ndarray:
+        """
+        Computes the off-diagonal of the capacitance matrix C from eq (1.13) in [1]. Only depends on the spacings between resonators.
+
+        Returns:
+            np.ndarray
+        """
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
         d2 = -1 / self.s
+        return d2
+
+    @override
+    def get_capacitance_matrix(self) -> np.ndarray:
+        """
+        Computes the capacitance matrix C from eq (1.13) in [1]. Only depends on the spacings between resonators.
+
+        Returns:
+            np.ndarray
+        """
+        d1 = self.__get_capacitance_diagonal()
+        d2 = self.__get_capacitance_offdiagonal()
         C = np.diag(d1) + np.diag(d2, 1) + np.diag(d2, -1)
         return C
 
@@ -108,10 +130,42 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray:
         """
-        C = self.get_capacitance_matrix()
-        L = np.diag(1 / self.l)
-        V = np.diag(self.v_in)
-        return V**2 @ L @ C
+        return self.get_material_matrix() @ self.get_capacitance_matrix()
+
+    @override
+    def get_sorted_eigs_capacitance_matrix(
+        self,
+        generalised=True,
+        hermitian_acceleration=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        if hermitian_acceleration:
+            if generalised:
+                Vl = self.get_material_matrix(
+                    inverted=False, perform_sqrt=True, return_only_list=True)
+                cdiag = self.__get_capacitance_diagonal()*(Vl**2)
+                coffdiag = self.__get_capacitance_offdiagonal()*(
+                    Vl[:-1]*Vl[1:])
+                D, St = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
+                S = Vl.reshape(-1, 1) * St
+            else:
+                cdiag = self.__get_capacitance_diagonal()
+                coffdiag = self.__get_capacitance_offdiagonal()
+                D, S = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
+        else:
+            if generalised:
+                D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
+                D, S = utils.sort_by_method(D, S, sorting)
+            else:
+                D, S = np.linalg.eigh(self.get_capacitance_matrix())
+        return D, S
 
     def get_greens_matrix(self, k):
         return np.linalg.inv(
@@ -173,6 +227,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
     def __init__(self, **pars):
         super().__init__(**pars)
 
+    @ override
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the capacitance matrix C from Lemma 4.7 in [2]. Only depends on the spacings between resonators.
@@ -210,6 +265,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
 
         return C
 
+    @ override
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
@@ -217,11 +273,41 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         Returns:
             Callable[[float], np.ndarray]: A function that maps alpha to the generalised capacitance matrix.
         """
+        return lambda alpha: self.get_material_matrix() @ self.get_capacitance_matrix()(alpha)
 
-        L = np.diag(1 / self.l)
-        V = np.diag(self.v_in)
+    @ override
+    def get_sorted_eigs_capacitance_matrix(
+        self,
+        generalised=True,
+        hermitian_acceleration=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
+        def eig(alpha):
+            if hermitian_acceleration:
+                if generalised:
+                    V = self.get_material_matrix(inverted=True)
+                    C = self.get_capacitance_matrix()(alpha)
+                    D, S = sci.linalg.eigh(C, b=V)
+                else:
+                    D, S = sci.linalg.eigh(
+                        self.get_capacitance_matrix()(alpha))
+            else:
+                if generalised:
+                    D, S = np.linalg.eig(
+                        self.get_generalised_capacitance_matrix()(alpha))
+                    D, S = utils.sort_by_method(D, S, sorting)
+                else:
+                    D, S = np.linalg.eigh(self.get_capacitance_matrix()(alpha))
 
-        return lambda alpha: V**2 @ L @ self.get_capacitance_matrix()(alpha)
+            return D, S
+        return eig
 
     def get_band_data(
         self, generalised: bool = True, nalpha: int = 100
