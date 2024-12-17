@@ -422,3 +422,9 @@ class PeriodicSWP1D(SWP1D):
             bands[i, :] = D
 
         return alphas, bands
+
+    def get_band_variation(
+        self, generalised=True, nalpha=100
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        alphas, bands = self.get_band_data(generalised, nalpha)
+        return np.var(bands, axis=0)
