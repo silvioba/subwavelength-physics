@@ -118,7 +118,7 @@ def lattice_sums(alpha, n, L, k):
             Lspm(b=alpha, s=s, pm=1, k=k, L=L)
             + (-1) ** n * Lspm(b=alpha, s=s, pm=-1, k=k, L=L)
         )
-    return scaling * temp
+    return complex(scaling * temp)
 
 
 def spherical_hl(n, z):
@@ -177,7 +177,7 @@ def estimate_time():
     pass
 
 
-def C_coefficent(l: int, m: int, lp: int, mp: int, lam: int, mu: int) -> float:
+def C_coefficient(l: int, m: int, lp: int, mp: int, lam: int, mu: int) -> float:
     """
     C coefficent used for the addition theorem as presented on page 42 of [3]
 
@@ -187,10 +187,23 @@ def C_coefficent(l: int, m: int, lp: int, mp: int, lam: int, mu: int) -> float:
     return (
         (1j) ** (lp - l + lam)
         * (-1) ** m
+        # * (-1) ** (lp - l)
         * np.sqrt(4 * np.pi * (2 * l + 1) * (2 * lp + 1) * (2 * lam + 1))
         * wigner_3j(l, lp, lam, 0, 0, 0)
+        # * wigner_3j(l, lp, lam, 0, 0, 0)
         * wigner_3j(l, lp, lam, -m, mp, mu)
     )
+
+
+def B_coefficient(alpha, l, m, lp, mp, L, k0, N_multipole):
+    B = 0
+    for lam in range(N_multipole):
+        B += C_coefficient(l, m, lp, mp, lam, 0) * lattice_sums(alpha, lam, L, k0)
+        # print("======\n")
+        # print(alpha, lam, L, k0)
+        # print(lattice_sums(alpha, lam, L, k0))
+        # print(B)
+    return complex(B)
 
 
 def precompute_C_and_A_coefficients_pairwise(
@@ -326,7 +339,7 @@ class ClassicFiniteFWP3D(SWP3D):
             for lam in range(N_multipole):
                 A += (
                     np.sqrt((2 * lam + 1) / (4 * np.pi))
-                    * C_coefficent(l, m, lp, mp, lam, 0)
+                    * C_coefficient(l, m, lp, mp, lam, 0)
                     * spherical_hl(lam, z)
                 )
             return A
@@ -531,18 +544,10 @@ class ClassicPeriodicFWP3D(SWP3D):
             for lam in range(N_multipole):
                 A += (
                     np.sqrt((2 * lam + 1) / 4 / np.pi)
-                    * C_coefficent(l, m, lp, mp, lam, 0)
+                    * C_coefficient(l, m, lp, mp, lam, 0)
                     * spherical_hl(lam, z)
                 )
             return A
-
-        def B_coef(alpha, l, m, lp, mp):
-            B = 0
-            for lam in range(N_multipole):
-                B += C_coefficent(l, m, lp, mp, lam, 0) * lattice_sums(
-                    alpha, lam, self.L, self.k0
-                )
-            return B
 
         c = -1j * self.radii**2
 
@@ -575,12 +580,20 @@ class ClassicPeriodicFWP3D(SWP3D):
                             )
                             for lp in range(N_multipole):
                                 for mp in range(-lp, lp + 1):
-                                    # print(B_coef(alpha, l, m, lp, mp))
                                     S[
                                         flat_index(i, N_multipole, l, m),
-                                        flat_index(j, N_multipole, l, m),
+                                        flat_index(j, N_multipole, lp, mp),
                                     ] += (
-                                        B_coef(alpha, l, m, lp, mp)
+                                        B_coefficient(
+                                            alpha=alpha,
+                                            l=l,
+                                            m=m,
+                                            lp=lp,
+                                            mp=mp,
+                                            L=self.L,
+                                            k0=self.k0,
+                                            N_multipole=N_multipole,
+                                        )
                                         * spherical_jn(lp, self.k0 * self.radii[i])
                                         * c[i]
                                         * self.k0
@@ -595,8 +608,17 @@ class ClassicPeriodicFWP3D(SWP3D):
                                         for mp in range(-lp, lp + 1):
                                             for lam in range(N_multipole):
                                                 temp += (
-                                                    B_coef(alpha, l, m, lp, mp)
-                                                    * C_coefficent(
+                                                    B_coefficient(
+                                                        alpha,
+                                                        l,
+                                                        m,
+                                                        lp,
+                                                        mp,
+                                                        self.L,
+                                                        self.k0,
+                                                        N_multipole,
+                                                    )
+                                                    * C_coefficient(
                                                         lp, mp, lpp, mpp, lam, 0
                                                     )
                                                     * spherical_jn(lam, self.k0 * rp)

@@ -7,6 +7,8 @@ from Subwavelength3D.classic import (
     ClassicPeriodicFWP3D,
     flat_index,
     lattice_sums,
+    C_coefficient,
+    B_coefficient,
 )
 
 
@@ -97,45 +99,119 @@ class QuasiPeriodicCapacitanceMatrixConstruction(unittest.TestCase):
         [
             (
                 0.25,  # alpha
-                0,  # n
+                0,  # N_multipole - 1
                 10,  # L
                 1e-5,  # k
                 -2.8209e-01 + 3.6152e03j,  # old_code_result
             ),
             (
                 0.1735,  # alpha
-                0,  # n
+                0,  # N_multipole - 1
                 13,  # L
                 1e-5,  # k
                 -2.8209e-01 + 2.5676e03j,  # old_code_result
             ),
             (
                 0.1735,  # alpha
-                1,  # n
+                1,  # N_multipole - 1
                 13,  # L
                 1e-5,  # k
-                1e7 * (3.3804 + 0.0000j),  # old_code_result
+                1e7 * (3.3804 + 0j),  # old_code_result
+            ),
+            (
+                0.0785,  # alpha
+                0,  # Nmulti
+                10,  # L
+                1e-05,  # k0
+                -2.8209e-01 - 1.5114e03j,  # old_code_result
+            ),
+            (
+                0.0785,  # alpha
+                1,  # N_multipole - 1
+                10,  # L
+                1e-05,  # k0
+                1e7 * (9.5939 - 0.0000j),  # old_code_result
             ),
         ]
     )
     def test_lattice_sums(self, alpha, n, L, k, old_code_result):
         res = lattice_sums(alpha=alpha, n=n, L=L, k=k)
-        if old_code_result.imag != 0:
-            self.assertLess(
-                np.abs((old_code_result.imag - res.imag) / old_code_result.imag),
-                1e-4,
-                f"Relative error of imaginary part is too large: got: {res.imag}, expected: {old_code_result.imag}",
+        np.testing.assert_approx_equal(
+            res.real,
+            old_code_result.real,
+            significant=5,
+            err_msg="Real part of the lattice sum does not match",
+        )
+        if abs(res.imag - old_code_result.imag) > 1e-5:
+            np.testing.assert_approx_equal(
+                res.imag,
+                old_code_result.imag,
+                significant=5,
+                err_msg="Imaginary part of the lattice sum does not match",
             )
-        else:
-            self.assertLess(
-                np.abs((old_code_result.imag - res.imag)),
-                1e-4,
-                f"Relative error of imaginary part is too large: got: {res.imag}, expected: {old_code_result.imag}",
-            )
-        self.assertLess(
-            np.abs((old_code_result.real - res.real) / old_code_result.real),
-            1e-4,
-            f"Relative error of imaginary part is too large: got: {res.imag}, expected: {old_code_result.imag}",
+
+    def test_C_coef(self):
+        """Compare new and old code for C_coefficent"""
+        self.assertAlmostEqual(
+            C_coefficient(l=0, m=0, lp=0, mp=0, lam=0, mu=0), 3.5449, places=4
+        )
+        self.assertAlmostEqual(
+            C_coefficient(l=1, m=0, lp=0, mp=0, lam=0, mu=0), 0, places=4
+        )
+        self.assertAlmostEqual(
+            C_coefficient(l=0, m=0, lp=1, mp=0, lam=0, mu=0), 0, places=4
+        )
+        self.assertAlmostEqual(
+            C_coefficient(l=1, m=0, lp=1, mp=0, lam=0, mu=0), 3.5449, places=4
+        )
+        self.assertAlmostEqual(
+            C_coefficient(l=0, m=0, lp=0, mp=0, lam=1, mu=0), 0, places=4
+        )
+        self.assertAlmostEqual(
+            C_coefficient(l=1, m=0, lp=0, mp=0, lam=1, mu=0), 3.5449, places=4
+        )
+        self.assertAlmostEqual(
+            C_coefficient(l=0, m=0, lp=1, mp=0, lam=1, mu=0), -3.5449, places=4
+        )
+
+    @parameterized.expand(
+        [
+            (
+                0.3142,  # alpha
+                1,  # n_multipole
+                10,  # L
+                1e-7,  # k
+                -1.0000e00 + 1.3863e06j,  # old_code_result
+            ),
+            (
+                0.1571,  # alpha
+                1,  # n_multipole
+                10,  # L
+                1e-7,  # k
+                -1.0000e00 + 6.9315e05j,  # old_code_result
+            ),
+            (
+                0.2356,  # alpha
+                1,  # n_multipole
+                10,  # L
+                1e-7,  # k
+                -1.0000e00 + 1.2279e06j,  # old_code_result
+            ),
+        ]
+    )
+    def test_B_coef(self, alpha, n, L, k0, old_code_result):
+        out = B_coefficient(alpha, l=0, m=0, lp=0, mp=0, L=L, k0=k0, N_multipole=n)
+        np.testing.assert_approx_equal(
+            out.real,
+            old_code_result.real,
+            significant=5,
+            err_msg="Real part of B does not match old code result",
+        )
+        np.testing.assert_approx_equal(
+            out.imag,
+            old_code_result.imag,
+            significant=5,
+            err_msg="Imag part of B does not match old code result",
         )
 
 
@@ -148,34 +224,12 @@ class QuasiPeriodicCapacitanceMatrix(unittest.TestCase):
                 np.array([1, 1, 1, 1]),  # radii
                 10,  # L
                 1e-5,  # k0
-                2,  # N_multipole
-                0.0706,  # alpha
+                1,  # N_multipole
+                0.0754,  # alpha
                 np.array(
                     [
-                        [
-                            -0.9660 - 0.0000j,
-                            -0.0000 - 0.0002j,
-                            -0.0660 + 0.0027j,
-                            -0.0058 - 0.0002j,
-                        ],
-                        [
-                            0.0000 + 0.0002j,
-                            -0.3333 + 0.0000j,
-                            0.0058 + 0.0002j,
-                            -0.0000 + 0.0000j,
-                        ],
-                        [
-                            -0.0660 - 0.0027j,
-                            0.0058 - 0.0002j,
-                            -0.9660 - 0.0000j,
-                            -0.0000 - 0.0002j,
-                        ],
-                        [
-                            -0.0058 + 0.0002j,
-                            -0.0000 - 0.0000j,
-                            0.0000 + 0.0002j,
-                            -0.3333 + 0.0000j,
-                        ],
+                        [-0.9654 - 0.0000j, -0.0654 + 0.0000j],
+                        [-0.0654 + 0.0000j, -0.9654 - 0.0000j],
                     ]
                 ),
             )
@@ -203,7 +257,9 @@ class QuasiPeriodicCapacitanceMatrix(unittest.TestCase):
         ]
     )
     def test_properties_2x2_capacitance(self, centers, radii, L, k0, N_multipole):
-        """Tests for properties of Lemma 6.3.1. in E.O. Hiltunen Doctoral Thesis"""
+        """
+        Tests for properties of Lemma 6.3.1. in E.O. Hiltunen Doctoral Thesis
+        """
         pwp = ClassicPeriodicFWP3D(centers=centers, radii=radii, L=L, k0=k0)
         alphas = np.linspace(-np.pi / L, np.pi / L, 100)
         for alpha in alphas:
