@@ -60,25 +60,16 @@ class DisorderedCommon:
         )
 
     @classmethod
-    def from_fibonacci_tiling(
+    def from_blocks_random_bound_length(
         cls,
         blocks: List[Tuple[List[int | float]]],
-        n_tiles: int,
+        n_reps: int,
+        weights: List[float] | None = None,
+        repeat_bound=1,
+        seed=42,
         **params,
-    ):
-        replacement_dict = {
-            0: [0, 1],
-            1: [0],
-        }
-        tiling = [1]
-        for i in range(n_tiles):
-            tiling = list(itertools.chain.from_iterable(
-                [replacement_dict[x] for x in tiling]))
-        return cls.from_blocks(
-            blocks=blocks,
-            idxs=tiling,
-            **params,
-        )
+    ) -> Self:
+        dp = cls.from_blocks_random(blocks, n_reps, weights, seed, **params)
 
     def get_block_list(self):
         """Get the list of len(self.idxs) containing the corresponding blocks, as specified by self.idx.
