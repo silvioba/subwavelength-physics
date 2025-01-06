@@ -65,10 +65,10 @@ def disordered_system_from_random_mathieu(
     **params,
 ):
     def get_mathieu_block(p):
-        return ([1, 1], [1+A*p, 2])
+        return ([1, 1], [1+A*np.cos(p), 2])
 
     np.random.random()
-    blocks = [get_mathieu_block(np.random.uniform(-1, 1))
+    blocks = [get_mathieu_block(np.random.uniform(0, 2*np.pi))
               for j in range(n_blocks)]
     idxs = list(range(n_blocks))
     return cls.from_blocks(
