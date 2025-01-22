@@ -410,6 +410,7 @@ class PeriodicSWP1D(SWP1D):
 
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvals_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -438,15 +439,10 @@ class PeriodicSWP1D(SWP1D):
         """
         alphas = np.linspace(-np.pi, np.pi, nalpha)
 
-        C = (
-            self.get_generalised_capacitance_matrix()
-            if generalised
-            else self.get_capacitance_matrix()
-        )
-
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
-            D, S = self.get_sorted_eigs_capacitance_matrix()(alpha)
+            D = self.get_sorted_eigs_capacitance_matrix(
+                eigenvals_only=True)(alpha)
             bands[i, :] = D
 
         return alphas, bands
