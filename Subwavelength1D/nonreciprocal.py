@@ -16,7 +16,7 @@ import copy
 
 from Utils.settings import settings
 
-from Utils.utils_general import *
+import Utils.utils_general as utils
 
 plt.rcParams.update(settings.matplotlib_params)
 
@@ -90,10 +90,27 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray:
         """
-        C = self.get_capacitance_matrix()
-        L = np.diag(1 / self.l)
-        V = np.diag(self.v_in)
-        return V**2 @ L @ C
+        return self.get_material_matrix() @ self.get_capacitance_matrix()
+
+    @override
+    def get_sorted_eigs_capacitance_matrix(
+        self,
+        generalised=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        if generalised:
+            D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
+        else:
+            D, S = np.linalg.eigh(self.get_capacitance_matrix())
+        D, S = utils.sort_by_method(D, S, sorting)
+        return D, S
 
     def compute_propagation_matrix(
         self, space_from_end=1, subwavelength=True
@@ -139,6 +156,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
             gammas = np.ones(self.N) * gammas
         self.gammas = np.array(gammas, dtype=float)
 
+    @override
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the capacitance matrix C from Definition in [1]. Note that the paper contains wrong indicies. This implementation is corrected.
@@ -183,12 +201,38 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
 
         return C
 
+    @override
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+        """
+        Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
 
-        L = np.diag(1 / self.l)
-        V = np.diag(self.v_in)
+        Returns:
+            Callable[[float], np.ndarray]: A function that maps alpha to the generalised capacitance matrix.
+        """
+        return lambda alpha: self.get_material_matrix() @ self.get_capacitance_matrix()(alpha)
 
-        return lambda alpha: V**2 @ L @ self.get_capacitance_matrix()(alpha)
+    @override
+    def get_sorted_eigs_capacitance_matrix(
+        self,
+        generalised=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
+        def eig(alpha):
+            if generalised:
+                D, S = np.linalg.eig(
+                    self.get_generalised_capacitance_matrix()(alpha))
+            else:
+                D, S = np.linalg.eigh(self.get_capacitance_matrix()(alpha))
+            D, S = utils.sort_by_method(D, S, sorting)
+            return D, S
+        return eig
 
 
 def convert_periodic_into_finite(

@@ -18,9 +18,9 @@ class SWP1D:
     def __init__(
         self,
         N: int,
-        l: np.ndarray | float,
-        s: np.ndarray | float,
-        v_in: np.ndarray | float | complex | None = None,
+        l: np.ndarray,
+        s: np.ndarray,
+        v_in: np.ndarray | None = None,
         v_out: float | None = None,
         delta: float | None = None,
         omega: float | complex | None = None,
@@ -61,7 +61,7 @@ class SWP1D:
         self.N = N
         self.l = l
         self.s = s
-        self.N = len(l)
+        assert len(l) == N, "The l of the l array must be equal to N"
         self.set_geometry(l, s)
 
         self.v_in = v_in
@@ -113,6 +113,25 @@ class SWP1D:
         self.omega = omega
         self.k_in = self.omega / self.v_in
         self.k_out = self.omega / self.v_out
+
+    def get_material_matrix(self, inverted=False, perform_sqrt=False, return_only_list=False) -> np.ndarray:
+        """
+        Get the material matrix such that :math:`VCu = \lambda u` is a solution to the subwavelength problem.
+
+        Returns:
+            np.ndarray: The material matrix.
+        """
+        diag = (
+            np.power(self.v_in, 2) / self.l
+        ) if not perform_sqrt else (
+            self.v_in/np.sqrt(self.l)
+        )
+        if inverted:
+            diag = 1/diag
+        if return_only_list:
+            return diag
+        else:
+            return np.diag(diag)
 
     def get_pertubed_copy(
         self,
@@ -285,12 +304,7 @@ class FiniteSWP1D(SWP1D):
             "eva_first_val",
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
-        if generalised:
-            D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
-        else:
-            D, S = np.linalg.eigh(self.get_capacitance_matrix())
-        D, S = utils.sort_by_method(D, S, sorting)
-        return D, S
+        raise NotImplementedError
 
     def plot_eigenvalues(
         self,
@@ -392,6 +406,20 @@ class PeriodicSWP1D(SWP1D):
         raise NotImplementedError
 
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+        raise NotImplementedError
+
+    def get_sorted_eigs_capacitance_matrix(
+        self,
+        generalised=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
         raise NotImplementedError
 
     def get_band_data(
