@@ -247,6 +247,26 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         pm = p @ pm
         return pm
 
+    def compute_reflection_and_transmission(self, subwavelength: bool = True) -> Tuple[float, float]:
+        """
+        Computes the transmission and reflection coefficients for the finite subwavelength wave problem. 
+        We do this by using the Q matrix to go to the A B basis and then applying the boundary conditions u_in,L = 1, u_in,R = 0.
+
+        Args:
+            subwavelength (bool, optional): Whether to use the subwavelength approximation. Defaults to True.
+
+        Returns:
+            Tuple[float, float]: The transmission and reflection coefficients.
+        """
+        pm = self.compute_propagation_matrix(
+            subwavelength=subwavelength, space_from_end=0)
+        Q0 = utils_propagation.get_Q_matrix(self.k_out, 0)
+        QL = utils_propagation.get_Q_matrix(self.k_out, self.L)
+        M = np.linalg.inv(QL) @ pm @ Q0
+        Rtot = - M[1, 0] / M[1, 1]
+        Ttot = M[0, 0] + M[0, 1] * Rtot
+        return np.abs(Rtot), np.abs(Ttot)
+
 
 class ClassicPeriodicSWP1D(PeriodicSWP1D):
     """

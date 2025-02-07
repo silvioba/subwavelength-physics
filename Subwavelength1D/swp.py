@@ -253,13 +253,13 @@ class FiniteSWP1D(SWP1D):
                     v_in, complex) else float) * v_in
             )
 
-        if not (
+        if (
             isinstance(v_out, float)
             or isinstance(v_out, int)
             or isinstance(v_out, complex)
-            or v_out is None
         ):
-            raise ValueError("v_out needs to be provided and a scalar")
+            v_out = complex(v_out) if isinstance(
+                v_out, complex) else float(v_out)
 
         assert (
             len(l) == N
@@ -431,8 +431,8 @@ class PeriodicSWP1D(SWP1D):
             nalpha (int, optional): number of samples in the first BZ. Defaults to 10.
 
         Returns:
-            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
-            np.ndarray: (nalpha, self.N) array with band data
+            alphas:np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
+            bands:np.ndarray: (nalpha, self.N) array with band data
         """
         alphas = np.linspace(-np.pi, np.pi, nalpha)
 
