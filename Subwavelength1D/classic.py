@@ -265,7 +265,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         M = np.linalg.inv(QL) @ pm @ Q0
         Rtot = - M[1, 0] / M[1, 1]
         Ttot = M[0, 0] + M[0, 1] * Rtot
-        return pm[0, 0], pm
+        return np.abs(Rtot), np.abs(Ttot)
 
 
 class ClassicPeriodicSWP1D(PeriodicSWP1D):
