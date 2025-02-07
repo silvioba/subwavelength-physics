@@ -431,8 +431,8 @@ class PeriodicSWP1D(SWP1D):
             nalpha (int, optional): number of samples in the first BZ. Defaults to 10.
 
         Returns:
-            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
-            np.ndarray: (nalpha, self.N) array with band data
+            alphas:np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
+            bands:np.ndarray: (nalpha, self.N) array with band data
         """
         alphas = np.linspace(-np.pi, np.pi, nalpha)
 
