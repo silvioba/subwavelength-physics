@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sci
 from Subwavelength1D.swp import (
     FiniteSWP1D,
     PeriodicSWP1D,
@@ -214,6 +215,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     @override
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvals_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -226,12 +228,18 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
         def eig(alpha):
             if generalised:
-                D, S = np.linalg.eig(
-                    self.get_generalised_capacitance_matrix()(alpha))
+                mat = self.get_generalised_capacitance_matrix()(alpha)
             else:
-                D, S = np.linalg.eigh(self.get_capacitance_matrix()(alpha))
-            D, S = utils.sort_by_method(D, S, sorting)
-            return D, S
+                mat = self.get_capacitance_matrix()(alpha)
+
+            if eigenvals_only:
+                D = sci.linalg.eigvals(mat)
+                return D
+            else:
+                D, S = np.linalg.eig(mat)
+                D, S = utils.sort_by_method(D, S, sorting)
+                return D, S
+
         return eig
 
 
