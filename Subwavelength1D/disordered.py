@@ -59,18 +59,6 @@ class DisorderedCommon:
             **params,
         )
 
-    @classmethod
-    def from_blocks_random_bound_length(
-        cls,
-        blocks: List[Tuple[List[int | float]]],
-        n_reps: int,
-        weights: List[float] | None = None,
-        repeat_bound=1,
-        seed=42,
-        **params,
-    ) -> Self:
-        dp = cls.from_blocks_random(blocks, n_reps, weights, seed, **params)
-
     def get_block_list(self):
         """Get the list of len(self.idxs) containing the corresponding blocks, as specified by self.idx.
 
@@ -200,8 +188,14 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
             assert len(
                 blocks[idx]) == 2, "We expect each block to be a 2-tuple"
             ll, ss = blocks[idx]
-            l = l + ll
-            s = s + ss
+            if ll == [0]:
+                # Gap Block
+                if len(s) > 0:
+                    s[-1] += ss[0]
+            else:
+                # Regular Block
+                l = l + ll
+                s = s + ss
         s = s[:-1]
         c = cls(N=len(l), l=np.array(l), s=np.array(s), **params)
         c.__setattr__("idxs", idxs)
@@ -254,9 +248,15 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
             assert len(
                 blocks[idx]) == 3, "We expect each block to be a 3-tuple"
             ll, ss, gg = blocks[idx]
-            l = l + ll
-            s = s + ss
-            g = g + gg
+            if ll == [0]:
+                # Gap Block
+                if len(s) > 0:
+                    s[-1] += ss[0]
+            else:
+                # Regular Block
+                l = l + ll
+                s = s + ss
+                g = g + gg
         s = s[:-1]
         c = cls(
             N=len(l), l=np.array(l), s=np.array(s), gammas=np.array(g), **params
