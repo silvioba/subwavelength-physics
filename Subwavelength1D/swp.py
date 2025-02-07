@@ -259,7 +259,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_out, complex)
             or v_out is None
         ):
-            raise ValueError("v_out needs to be provided and a scalar")
+            v_out = complex(v_out) if isinstance(
+                v_out, complex) else float(v_out)
 
         assert (
             len(l) == N
