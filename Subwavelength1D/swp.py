@@ -258,11 +258,8 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_out, int)
             or isinstance(v_out, complex)
         ):
-            v_out = (
-                np.ones(N, dtype=complex if isinstance(
-                    v_out, complex) else float)
-                * v_in
-            )
+            v_out = complex(v_out) if isinstance(
+                v_out, complex) else float(v_out)
 
         assert (
             len(l) == N
