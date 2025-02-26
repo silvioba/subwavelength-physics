@@ -65,22 +65,23 @@ def plot_variance_band_functions(
         idxs = np.append(idxs, -1)
 
         for i in range(len(idxs) - 1):
-            means_sel = means[idxs[i] : idxs[i + 1]]
+            means_sel = means[idxs[i]: idxs[i + 1]]
             if len(means_sel) == 0:
                 continue
             X, Y = np.meshgrid(
                 means_sel,
                 np.array(
-                    [kwargs.get("vlims", [0, 1])[0], kwargs.get("vlims", [0, 1])[1]]
+                    [kwargs.get("vlims", [0, 1])[0],
+                     kwargs.get("vlims", [0, 1])[1]]
                 ),
             )
             Z = np.ones_like(Y, dtype=float)
             for j in range(Z.shape[0]):
-                Z[j, :] = variances_trans[idxs[i] : idxs[i + 1]]
+                Z[j, :] = variances_trans[idxs[i]: idxs[i + 1]]
 
             cmap, norm = custom_colormap_with_lognorm(
                 variance_lowest,
-                vmin=1e-17,
+                vmin=np.min(variances_trans),
                 vmax=np.max(variances_trans),
             )
             pcm = ax.pcolormesh(
@@ -92,7 +93,8 @@ def plot_variance_band_functions(
                 shading="nearest",
             )
         if kwargs.get("colorbar"):
-            plt.colorbar(pcm, ax=ax, extend="max")
+            cbar = plt.colorbar(pcm, ax=ax, extend="max")
+            cbar.set_label(r"Band variation")
 
     else:
         if semilogy:
@@ -404,7 +406,8 @@ def plot_variance_density_histogram(
     if not bins:
         bins = dp.N // 2
 
-    pwp = classic.convert_finite_into_periodic(dp, dp.blocks[dp.idxs[-1]][1][-1])
+    pwp = classic.convert_finite_into_periodic(
+        dp, dp.blocks[dp.idxs[-1]][1][-1])
 
     bands_total = np.zeros((nalpha, dp.N))
 
@@ -414,7 +417,8 @@ def plot_variance_density_histogram(
             pwp_perturbed = pwp.get_pertubed_copy(
                 p, perturb_param=perturb_param, p_sampling=p_sampling
             )
-            alphas, bands = pwp_perturbed.get_band_data(generalised=True, nalpha=nalpha)
+            alphas, bands = pwp_perturbed.get_band_data(
+                generalised=True, nalpha=nalpha)
             band_realizations[i, :, :] = np.real(bands)
         return np.mean(band_realizations, axis=0)
 
@@ -480,7 +484,8 @@ def plot_variance_perturbation_heatmap(
     ax=None,
     **kwargs,
 ):
-    pwp = classic.convert_finite_into_periodic(dp, dp.blocks[dp.idxs[-1]][1][-1])
+    pwp = classic.convert_finite_into_periodic(
+        dp, dp.blocks[dp.idxs[-1]][1][-1])
 
     bands_total = np.zeros((n_ps, nalpha, dp.N))
 
@@ -490,7 +495,8 @@ def plot_variance_perturbation_heatmap(
             pwp_perturbed = pwp.get_pertubed_copy(
                 p, perturb_param=perturb_param, p_sampling=p_sampling
             )
-            alphas, bands = pwp_perturbed.get_band_data(generalised=True, nalpha=nalpha)
+            alphas, bands = pwp_perturbed.get_band_data(
+                generalised=True, nalpha=nalpha)
             band_realizations[i, :, :] = np.real(bands)
         return np.mean(band_realizations, axis=0)
 

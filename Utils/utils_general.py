@@ -30,17 +30,17 @@ def sort_by_eve_localization(D, S):
 
 def sort_by_eva_real(D, S):
     sidx = np.argsort(np.real(D))
-    return D[sidx], S[:, sidx]
+    return D[sidx], (S[:, sidx] if S is not None else None)
 
 
 def sort_by_eva_imag(D, S):
     sidx = np.argsort(np.imag(D))
-    return D[sidx], S[:, sidx]
+    return D[sidx], (S[:, sidx] if S is not None else None)
 
 
 def sort_by_eva_abs(D, S):
     sidx = np.argsort(np.abs(D))
-    return D[sidx], S[:, sidx]
+    return D[sidx], (S[:, sidx] if S is not None else None)
 
 
 def sort_by_eve_first_val(D, S):
