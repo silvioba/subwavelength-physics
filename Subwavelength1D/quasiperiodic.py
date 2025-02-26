@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.signal import correlate
 
 from Subwavelength1D.classic import ClassicFiniteSWP1D
 
@@ -24,14 +25,7 @@ def disordered_system_from_fibonacci_tiling(
     cls=DisorderedClassicFiniteSWP1D,
     **params,
 ):
-    replacement_dict = {
-        0: [0, 1],
-        1: [0],
-    }
-    tiling = [1]
-    for i in range(n_tiles):
-        tiling = list(itertools.chain.from_iterable(
-            [replacement_dict[x] for x in tiling]))
+    tiling = construct_fibonacci_sequence(n_tiles)
     return cls.from_blocks(
         blocks=blocks,
         idxs=tiling,
@@ -78,11 +72,25 @@ def disordered_system_from_random_mathieu(
     )
 
 
+def construct_fibonacci_sequence(n_iterates: int):
+    replacement_dict = {
+        0: [0, 1],
+        1: [0],
+    }
+    tiling = [1]
+    for i in range(n_iterates):
+        tiling = list(itertools.chain.from_iterable(
+            [replacement_dict[x] for x in tiling]))
+    return tiling
+
+
 def construct_hyperuniform_binary_sequence(n_chunks: int):
     ss = []
     for i in range(n_chunks):
         s = np.random.choice(2)
         ss.extend([s, 1-s])
+    # Roll to make the sequence homogenous
+    ss = np.roll(ss, np.random.randint(0, 2))
     return ss
 
 
@@ -119,48 +127,7 @@ def construct_softmax_uniformed_sequence(n_symbols: int, n_reps: int, beta: floa
     return ss
 
 
-def autocovariance(x, max_lag=None):
-    """
-    Compute the sample autocovariance of a (0-1) binary sequence x.
-
-    Parameters
-    ----------
-    x : array_like
-        Input 1D sequence of 0s and 1s.
-    max_lag : int, optional
-        Maximum lag for which autocovariance is calculated.
-        If None, defaults to len(x) - 1.
-
-    Returns
-    -------
-    covs : ndarray
-        1D array of autocovariance values for lags 0..max_lag.
-    """
-
-    x = np.asarray(x, dtype=float)
-    n = len(x)
-    if max_lag is None:
-        max_lag = n - 1
-
-    # Compute mean
-    mean_x = np.mean(x)
-    # Center the sequence around zero
-    x_centered = x - mean_x
-
-    # Use 'full' cross-correlation, then trim. For a sequence x_centered,
-    # np.correlate(x_centered, x_centered, 'full') yields an array of length 2n-1:
-    #    [ (x[0]*x[0] + ... ), ..., (x[n-1]*x[0]), (x[0]*x[n-1]), ..., (x[n-1]*x[n-1]) ]
-    # The zero-lag is at index n-1.
-    c = np.correlate(x_centered, x_centered, mode='full')
-
-    # We only want the part from lag=0 up to lag=max_lag
-    # The element for lag k is c[n-1 + k]
-    c = c[n-1: n-1 + max_lag + 1]
-
-    # Typically, the sample autocovariance for lag k is
-    #   (1 / n) * sum_{t=k+1..n} [(x_t - mean_x)*(x_{t-k} - mean_x)]
-    # Here, we divide by n to get the biased estimator.
-    # For the unbiased estimator, you might divide by (n - k) or (n - |k|).
-    c = c / n
-
-    return c
+def autocovariance(x):
+    mean = np.mean(x)
+    c = correlate(x-mean, x-mean, mode="same")
+    return c/len(x)
