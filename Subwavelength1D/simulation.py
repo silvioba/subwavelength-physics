@@ -276,7 +276,7 @@ class ClassicFiniteSWP1DSolverFlux:
         return self.u
 
 
-def plot_wave_solution_heatmap(t_array, x_array, u, wp):
+def plot_wave_solution_heatmap(t_array, x_array, u, wp, fig=None):
     """
     Plots the solution u(t,x) in a spacetime heatmap:
       - Horizontal axis: x
@@ -285,8 +285,10 @@ def plot_wave_solution_heatmap(t_array, x_array, u, wp):
     # t_array has shape (Nt+1,)
     # x_array has shape (Nx+1,)
     # u has shape (Nt+1, Nx+1)
-
-    fig, ax = plt.subplots(figsize=(8, 4))
+    if fig is None:
+        fig, ax = plt.subplots(figsize=(8, 4))
+    else:
+        ax = fig.gca()
 
     # imshow expects the image first index to go along vertical axis,
     # so axis=0 in u is "time", axis=1 is "space":
@@ -308,11 +310,9 @@ def plot_wave_solution_heatmap(t_array, x_array, u, wp):
 
     # Add a colorbar
     cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label("u(t, x)")
+    cbar.set_label(r"$u(t, x)$")
 
     # Axis labels
-    ax.set_xlabel("x")
-    ax.set_ylabel("t")
+    ax.set_xlabel(r"Position $x$")
+    ax.set_ylabel(r"Time $t$")
     ax.set_title("Wave Solution Heatmap")
-
-    plt.show()
