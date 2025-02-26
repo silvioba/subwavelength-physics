@@ -240,7 +240,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         p = utils_propagation.propagation_matrix_single(
             l=self.l[-1],
             s=space_from_end,
-            k=self.k_in[i],
+            k=self.k_in[-1],
             delta=self.delta,
             subwavelength=subwavelength,
         )
@@ -278,7 +278,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
     def __init__(self, **pars):
         super().__init__(**pars)
 
-    @ override
+    @override
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the capacitance matrix C from Lemma 4.7 in [2]. Only depends on the spacings between resonators.
@@ -316,7 +316,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
 
         return C
 
-    @ override
+    @override
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.

@@ -117,12 +117,7 @@ def plot_propagation_eigenvalues(
     ks = np.linspace(k_min, k_max, n_pts)
     eves = np.zeros((len(ks), 2 if not only_large else 1), dtype=complex)
     for i, k in enumerate(ks):
-        fswp.set_params(
-            k_in=np.ones(fswp.N) * k,
-            k_out=k,
-            v_in=np.ones(fswp.N) * fswp.omega / k,
-            v_out=fswp.omega / k,
-        )
+        fswp.set_omega(k)
         D, S = np.linalg.eig(
             fswp.compute_propagation_matrix(
                 space_from_end=space_from_end, subwavelength=subwavelength
