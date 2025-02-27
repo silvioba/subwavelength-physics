@@ -135,6 +135,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
     @override
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
+        select='a',
+        select_range=None,
         generalised=True,
         hermitian_acceleration=True,
         sorting: Literal[
@@ -153,49 +156,83 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
                 cdiag = self.__get_capacitance_diagonal()*(Vl**2)
                 coffdiag = self.__get_capacitance_offdiagonal()*(
                     Vl[:-1]*Vl[1:])
-                D, St = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
-                S = Vl.reshape(-1, 1) * St
+                if eigenvalues_only:
+                    D = sci.linalg.eigh_tridiagonal(
+                        cdiag, coffdiag, eigvals_only=True
+                    )
+                    S = None
+                else:
+                    D, St = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
+                    S = Vl.reshape(-1, 1) * St
             else:
                 cdiag = self.__get_capacitance_diagonal()
                 coffdiag = self.__get_capacitance_offdiagonal()
-                D, S = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
+                if eigenvalues_only:
+                    D = sci.linalg.eigh_tridiagonal(
+                        cdiag, coffdiag, eigvals_only=True,
+                    )
+                    S = None
+                else:
+                    D, S = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
         else:
             if generalised:
                 D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
-                D, S = utils.sort_by_method(D, S, sorting)
             else:
                 D, S = np.linalg.eigh(self.get_capacitance_matrix())
+
+        D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
-    def get_sorted_spectrum_capacitance_matrix(
+    def get_spectral_range_capacitance_matrix(
         self,
         generalised=True,
-        hermitian_acceleration=True,
         select='a',
         select_range=None,
     ) -> np.ndarray:
-        if hermitian_acceleration:
-            if generalised:
-                Vl = self.get_material_matrix(
-                    inverted=False, perform_sqrt=True, return_only_list=True)
-                cdiag = self.__get_capacitance_diagonal()*(Vl**2)
-                coffdiag = self.__get_capacitance_offdiagonal()*(
-                    Vl[:-1]*Vl[1:])
-                D = sci.linalg.eigh_tridiagonal(
-                    cdiag, coffdiag, eigvals_only=True,
-                    select=select, select_range=select_range
-                )
-            else:
-                cdiag = self.__get_capacitance_diagonal()
-                coffdiag = self.__get_capacitance_offdiagonal()
-                D = sci.linalg.eigh_tridiagonal(
-                    cdiag, coffdiag, eigvals_only=True)
+        """
+        Calculates the eigenvalues of the capacitance matrix within a specified spectral range.
+        This function computes the eigenvalues of either the regular capacitance matrix or
+        the generalized capacitance matrix (scaled by material properties).
+        Parameters
+        ----------
+        generalised : bool, default=True
+            If True, computes eigenvalues of the generalised capacitance matrix,
+            which includes material property scaling. If False, computes eigenvalues
+            of the regular capacitance matrix.
+        select : {'a', 'v', 'i'}, default='a'
+            Selection criteria for eigenvalues:
+            - 'a': All eigenvalues will be computed
+            - 'v': Eigenvalues in the specified range will be computed
+            - 'i': Eigenvalues with indices in the specified range will be computed
+        select_range : tuple or None, default=None
+            Range specification for eigenvalue selection. Required when select='v' or select='i'.
+            For select='v', this is a tuple (min, max) specifying the value range.
+            For select='i', this is a tuple (min, max) specifying the index range.
+        Returns
+        -------
+        np.ndarray
+            Array containing the calculated eigenvalues of the capacitance matrix.
+        Notes
+        -----
+        The function uses scipy.linalg.eigh_tridiagonal to efficiently compute eigenvalues
+        of the tridiagonal capacitance matrix.
+        """
+        if generalised:
+            Vl = self.get_material_matrix(
+                inverted=False, perform_sqrt=True, return_only_list=True)
+            cdiag = self.__get_capacitance_diagonal()*(Vl**2)
+            coffdiag = self.__get_capacitance_offdiagonal()*(
+                Vl[:-1]*Vl[1:])
+            D = sci.linalg.eigh_tridiagonal(
+                cdiag, coffdiag, eigvals_only=True,
+                select=select, select_range=select_range
+            )
         else:
-            if generalised:
-                D = np.linalg.eigvals(
-                    self.get_generalised_capacitance_matrix())
-            else:
-                D = np.linalg.eigvalsh(self.get_capacitance_matrix())
+            cdiag = self.__get_capacitance_diagonal()
+            coffdiag = self.__get_capacitance_offdiagonal()
+            D = sci.linalg.eigh_tridiagonal(
+                cdiag, coffdiag, eigvals_only=True)
+
         return D
 
     def get_greens_matrix(self, k):
@@ -380,38 +417,6 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
             else:
                 return D, S
         return eig
-
-    # def get_band_data(
-    #     self, generalised: bool = True, nalpha: int = 100
-    # ) -> Tuple[np.ndarray, np.ndarray]:
-    #     """
-    #     Returns the band data of the capacitance matrix
-
-    #     Args:
-    #         generalised (bool, optional): Wheter to use the generalised capacitance matrix. Defaults to True.
-    #         nalpha (int, optional): number of samples in [-pi, pi). Defaults to 100.
-
-    #     Returns:
-    #         np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
-    #         np.ndarray: (nalpha, self.N) array with band data
-    #     """
-    #     alphas = np.linspace(-np.pi, np.pi, nalpha)
-    #     if generalised:
-    #         band_fn = self.get_sorted_eigs_capacitance_matrix()
-    #         bands = np.zeros((nalpha, self.N), dtype=complex)
-    #         for i, alpha in enumerate(alphas):
-    #             D, S = np.linalg.eig(C(alpha))
-    #             D, S = utils.sort_by_eva_real(D, S)
-    #             bands[i, :] = D
-
-    #     else:
-    #         bands = np.zeros((nalpha, self.N), dtype=float)
-    #         C = self.get_capacitance_matrix()
-    #         for i, alpha in enumerate(alphas):
-    #             D, S = np.linalg.eigh(C(alpha))
-    #             bands[i, :] = D
-
-    #     return alphas, bands
 
     def plot_band_functions(
         self, generalised=True, nalpha=100, ax: Axes | None = None

@@ -291,6 +291,7 @@ class FiniteSWP1D(SWP1D):
 
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -407,7 +408,7 @@ class PeriodicSWP1D(SWP1D):
 
     def get_sorted_eigs_capacitance_matrix(
         self,
-        eigenvals_only=False,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",

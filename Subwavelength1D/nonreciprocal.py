@@ -96,6 +96,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
     @override
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -107,9 +108,16 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
         if generalised:
-            D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
+            mat = self.get_generalised_capacitance_matrix()
         else:
-            D, S = np.linalg.eigh(self.get_capacitance_matrix())
+            mat = self.get_capacitance_matrix()
+
+        if eigenvalues_only:
+            D = np.linalg.eigvals(mat)
+            S = None
+        else:
+            D, S = np.linalg.eig(mat)
+
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
@@ -215,7 +223,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     @override
     def get_sorted_eigs_capacitance_matrix(
         self,
-        eigenvals_only=False,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -232,13 +240,12 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
             else:
                 mat = self.get_capacitance_matrix()(alpha)
 
-            if eigenvals_only:
-                D = sci.linalg.eigvals(mat)
-                return D
+            if eigenvalues_only:
+                D = np.linalg.eigvals(mat)
+                S = None
             else:
                 D, S = np.linalg.eig(mat)
-                D, S = utils.sort_by_method(D, S, sorting)
-                return D, S
+            return D, S
 
         return eig
 
