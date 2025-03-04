@@ -218,6 +218,51 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
         D_sorted, S_sorted = sort_by_eva_real(D, S)
         return (D_sorted[-n_eigs // 2:], S_sorted[:, -n_eigs // 2:] if S_sorted is not None else None)
 
+    def get_spectral_mat(self, N_fourier: int = 4, n_eigs: int | None = None, generalised: bool = True):
+        if generalised:
+            GCM = self.delta * self.get_generalised_capacitance_matrix()
+        else:
+            GCM = self.delta * self.get_capacitance_matrix()
+        Nres = self.N
+        Mexp = 2 * N_fourier + 1
+        dim_block = Nres * Mexp
+        if n_eigs is None:
+            n_eigs = 2 * Nres
+        Mmod = 1
+        k_mod = np.zeros((2 * Mmod + 1, Nres), dtype=complex)
+        for i in range(Nres):
+            k_mod[Mmod, i] = 1.0
+            k_mod[Mmod - 1, i] = self.epsilon_kappa / \
+                2.0 * np.exp((-1j) * self.phase_kappa[i])
+            k_mod[Mmod + 1, i] = self.epsilon_kappa / \
+                2.0 * np.exp(1j * self.phase_kappa[i])
+        ns = np.arange(-N_fourier, N_fourier + 1)
+        Omega_block = np.diag((-1j) * ns * self.big_omega)
+        I_Nres = np.eye(Nres, dtype=complex)
+        big_Omega = np.kron(I_Nres, Omega_block)
+
+        def blk_slice(i):
+            r1 = i * Mexp
+            r2 = (i + 1) * Mexp
+            return slice(r1, r2)
+        big_iK = np.zeros((dim_block, dim_block), dtype=complex)
+        for i in range(Nres):
+            Ki = self.__get_toeplitz_form_from_fourier_coeffs(
+                k_mod[:, i], N_fourier)
+            Ki_inv = np.linalg.inv(Ki)
+            slc = blk_slice(i)
+            big_iK[slc, slc] = Ki_inv
+        I_Mexp = np.eye(Mexp, dtype=complex)
+        big_GCM = np.kron(GCM, I_Mexp)
+        mat_upperleft = (-1j) * big_Omega
+        mat_upperright = 1j * big_iK
+        mat_lowerleft = (-1j) * big_GCM
+        mat_lowerright = (-1j) * big_Omega
+        top = np.concatenate([mat_upperleft, mat_upperright], axis=1)
+        bottom = np.concatenate([mat_lowerleft, mat_lowerright], axis=1)
+        mat = np.concatenate([top, bottom], axis=0)
+        return mat
+
     def simplified_get_sorted_eigs_capacitance_matrix(self, N_fourier: int = 4, n_eigs: int | None = None, generalised: bool = True, which: str = 'SM', maxiter: int = 1000, return_eigenvectors: bool = False):
         if generalised:
             GCM = self.delta * self.get_generalised_capacitance_matrix()
