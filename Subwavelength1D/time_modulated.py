@@ -4,6 +4,9 @@ from scipy.sparse.linalg import eigs
 from Subwavelength1D.swp import FiniteSWP1D
 from typing import Literal, Callable, Tuple, Self, List, override
 from Utils.utils_general import sort_by_eva_real
+import Utils.utils_general as utils
+
+import time
 
 
 class TimeModulatedFiniteSWP1D(FiniteSWP1D):
@@ -104,273 +107,153 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
             T += np.diag([coeff] * (2 * M + 1 - abs(k)), k)
         return T
 
-    @override
-    def get_sorted_eigs_capacitance_matrix(self, N_fourier: int = 4, n_eigs: int | None = None, generalised: bool = True, which: str = 'SM', maxiter: int = 1000, return_eigenvectors: bool = False):
-        """
-        Computes the approximate spectrum (Floquet exponents) of the time-modulated
-        capacitance system:
-
-        .. math::
-            \\rho(t)^{-1} \\frac{d}{dt}\\Bigl(\\kappa(t)^{-1}\\frac{d}{dt}[\\rho(t)\\,\\Psi]\\Bigr) + \\delta\\,\\mathrm{diag}\\Bigl(\\frac{1}{l_i}\\Bigr)\\,\\mathrm{diag}(v_{r,i}^2)\\,C \\,\\Psi \\;=\\; 0,
-
-        using the spectral (Fourier) method in time.  It solves a large block-diagonal
-        eigenvalue problem for the expansions of :math:`\\Psi(t)`, restricted to
-        Fourier harmonics :math:`|n|\\leq N_{\\text{fourier}}`.
-
-        Parameters
-        ----------
-        N_fourier : int
-            Highest Fourier order for the solution expansions.  The large system
-            dimension is :math:`2\\,N\\,(2\\,N_{\\mathrm{fourier}}+1)`.
-        n_eigs : int or None
-            Number of smallest-magnitude eigenvalues to extract. Defaults to 2*N.
-        use_generalised : bool
-            If True, we use the \"generalised\" matrix  :math:`\\delta\\,\\mathrm{diag}(\\tfrac{1}{l_i})\\,\\mathrm{diag}(v_{r,i}^2)\\,C`.
-            If False, we use just the simpler matrix :math:`C`.
-        which : {\"SM\", \"LM\", ...}
-            Passed to `scipy.sparse.linalg.eigs` - \"SM\" means smallest magnitude,
-            \"LM\" largest magnitude, etc.
-        return_eigenvectors : bool
-            If True, we also return the large matrix\'s eigenvectors. (Be aware of the memory cost!)
-
-        Returns
-        -------
-        w_out : np.ndarray
-            Sorted 1D array of the requested eigenvalues (length = n_eigs).
-        None or np.ndarray
-            By default None. If ``return_eigenvectors=True``, returns the matrix
-            of eigenvectors corresponding to ``w_out``.
-
-        Notes
-        -----
-        - The code closely follows the MATLAB approach.  The complex matrix dimension
-          is :math:`2 (N \\times NN)` with :math:`NN = 2\\,N_{\\mathrm{fourier}} + 1`.
-        - The final sort is by real part of the eigenvalues.
-        """
+    def get_spectral_matrix(self, N_fourier: int = 4, generalised: bool = True, hot: bool = False):
+        # Get the appropriate capacitance matrix
         if generalised:
             GCM = self.delta * self.get_generalised_capacitance_matrix()
         else:
             GCM = self.delta * self.get_capacitance_matrix()
-        Nres = self.N
-        if n_eigs is None:
-            n_eigs = 2 * Nres
-        M = 1
-        R_mod = np.zeros((2 * M + 1, Nres), dtype=complex)
-        K_mod = np.zeros((2 * M + 1, Nres), dtype=complex)
-        for i in range(Nres):
-            R_mod[M, i] = 1.0
-            R_mod[M - 1, i] = self.epsilon_rho / 2.0 * \
-                np.exp((-1j) * self.phase_rho[i])
-            R_mod[M + 1, i] = self.epsilon_rho / \
-                2.0 * np.exp(1j * self.phase_rho[i])
-            K_mod[M, i] = 1.0
-            K_mod[M - 1, i] = self.epsilon_kappa / 2.0 * \
-                np.exp((-1j) * self.phase_kappa[i])
-            K_mod[M + 1, i] = self.epsilon_kappa / \
-                2.0 * np.exp(1j * self.phase_kappa[i])
-        ns = np.arange(-N_fourier, N_fourier + 1)
-        NN = 2 * N_fourier + 1
-        O_block = np.diag(ns * self.big_omega)
-        dim_block = Nres * NN
-        iK = np.zeros((dim_block, dim_block), dtype=complex)
-        R_mat = np.zeros((dim_block, dim_block), dtype=complex)
-        iR_mat = np.zeros((dim_block, dim_block), dtype=complex)
+        Nres = self.N  # Number of resonators
+        Mexp = 2 * N_fourier + 1  # Total number of Fourier coefficients
+        dim_block = Nres * Mexp  # Total size of the matrices in Fourier space
 
-        def blk_slice(i):
-            r1 = i * NN
-            r2 = (i + 1) * NN
-            return slice(r1, r2)
-        for i in range(Nres):
-            Ki = self.__get_toeplitz_form_from_fourier_coeffs(
-                K_mod[:, i], N_fourier)
-            Ri = self.__get_toeplitz_form_from_fourier_coeffs(
-                R_mod[:, i], N_fourier)
-            Ki_inv = np.linalg.inv(Ki)
-            Ri_inv = np.linalg.inv(Ri)
-            slc = blk_slice(i)
-            iK[slc, slc] = Ki_inv
-            R_mat[slc, slc] = Ri
-            iR_mat[slc, slc] = Ri_inv
-        I_NN = np.eye(NN, dtype=complex)
-        big_GCM = np.kron(GCM, I_NN)
-        iRcR = iR_mat @ big_GCM @ R_mat
-        block_size = dim_block
-        zero_block = np.zeros((block_size, block_size), dtype=complex)
-        big_I_N = np.eye(Nres, dtype=complex)
-        big_O = np.kron(big_I_N, O_block)
-        mat_upperleft = -big_O
-        mat_upperright = zero_block
-        mat_lowerleft = zero_block
-        mat_lowerright = -big_O
-        mat_upperright = mat_upperright - 1j * iK
-        mat_lowerleft = mat_lowerleft + 1j * iRcR
-        top = np.concatenate([mat_upperleft, mat_upperright], axis=1)
-        bottom = np.concatenate([mat_lowerleft, mat_lowerright], axis=1)
-        mat = np.concatenate([top, bottom], axis=0)
-        dim_mat = mat.shape[0]
-        if n_eigs >= dim_mat:
-            raise ValueError(
-                f'Requested n_eigs={n_eigs} but matrix dimension is {dim_mat}. Must have n_eigs < matrix dimension.')
-        D, S = np.linalg.eig(mat)
-        idx_selection = np.argsort(np.abs(D.real))[:n_eigs]
-        D = D[idx_selection]
-        S = S[:, idx_selection] if return_eigenvectors else None
-        D_sorted, S_sorted = sort_by_eva_real(D, S)
-        return (D_sorted[-n_eigs // 2:], S_sorted[:, -n_eigs // 2:] if S_sorted is not None else None)
-
-    def get_spectral_mat(self, N_fourier: int = 4, n_eigs: int | None = None, generalised: bool = True):
-        if generalised:
-            GCM = self.delta * self.get_generalised_capacitance_matrix()
-        else:
-            GCM = self.delta * self.get_capacitance_matrix()
-        Nres = self.N
-        Mexp = 2 * N_fourier + 1
-        dim_block = Nres * Mexp
-        if n_eigs is None:
-            n_eigs = 2 * Nres
-        Mmod = 1
-        k_mod = np.zeros((2 * Mmod + 1, Nres), dtype=complex)
-        for i in range(Nres):
-            k_mod[Mmod, i] = 1.0
-            k_mod[Mmod - 1, i] = self.epsilon_kappa / \
-                2.0 * np.exp((-1j) * self.phase_kappa[i])
-            k_mod[Mmod + 1, i] = self.epsilon_kappa / \
-                2.0 * np.exp(1j * self.phase_kappa[i])
+        # Construct big_Omega, corresponding to the time derivative
         ns = np.arange(-N_fourier, N_fourier + 1)
         Omega_block = np.diag((-1j) * ns * self.big_omega)
         I_Nres = np.eye(Nres, dtype=complex)
         big_Omega = np.kron(I_Nres, Omega_block)
 
+        Mmod = 1  # Order of Fourier coefficients of the inverse of the material modulation
+        # Calculate the Fourier coefficients of the inverse of the material modulation
+        kappa_inv_coeffs = np.zeros((2 * Mmod + 1, Nres), dtype=complex)
+        for i in range(Nres):
+            # For each resonator we have a Fourier expansion of the inverse material modulation:
+            # (self.epsilon_kappa / 2.0 * np.exp(-1j * self.phase_kappa[i]), 1, self.epsilon_kappa / 2.0 * np.exp(1j * self.phase_kappa[i]))
+            kappa_inv_coeffs[Mmod, i] = 1.0
+            kappa_inv_coeffs[Mmod - 1, i] = self.epsilon_kappa / \
+                2.0 * np.exp(-1j * self.phase_kappa[i])
+            kappa_inv_coeffs[Mmod + 1, i] = self.epsilon_kappa / \
+                2.0 * np.exp(1j * self.phase_kappa[i])
+
+        # Helper function to get the slice of length (Mexp) containing all Fourier coefficients corresponding to the i-th resonator
         def blk_slice(i):
             r1 = i * Mexp
             r2 = (i + 1) * Mexp
             return slice(r1, r2)
-        big_iK = np.zeros((dim_block, dim_block), dtype=complex)
+
+        # Construct big_K, corresponding to the material modulation
+        # To that end we have to calculate the inverse of the Fourier coefficients of the inverse material modulation obtained above
+        big_K = np.zeros((dim_block, dim_block), dtype=complex)
         for i in range(Nres):
+            # Using the inverse material modulation Fourier coefficients we construct the Toeplitz matrix
+            # corresponding to the i-th resonator
             Ki = self.__get_toeplitz_form_from_fourier_coeffs(
-                k_mod[:, i], N_fourier)
+                kappa_inv_coeffs[:, i], N_fourier)
+            # Taking the inverse yields the Fourier coefficients of the (uninverted) material modulation
             Ki_inv = np.linalg.inv(Ki)
             slc = blk_slice(i)
-            big_iK[slc, slc] = Ki_inv
+            big_K[slc, slc] = Ki_inv
+
+        # Construct big_GCM, corresponding to the capacitance matrix
         I_Mexp = np.eye(Mexp, dtype=complex)
         big_GCM = np.kron(GCM, I_Mexp)
+
+        # Construct the matrix
         mat_upperleft = (-1j) * big_Omega
-        mat_upperright = 1j * big_iK
+        mat_upperright = 1j * big_K
         mat_lowerleft = (-1j) * big_GCM
-        mat_lowerright = (-1j) * big_Omega
+        # If hot is True, we have to include the higher order terms
+        if hot:
+            alpha = self.delta * self.get_material_matrix()
+            big_alpha = np.kron(alpha, I_Mexp)
+            mat_lowerright = (-1j) * (big_alpha @ big_K + big_Omega)
+        else:
+            mat_lowerright = (-1j) * big_Omega
+
         top = np.concatenate([mat_upperleft, mat_upperright], axis=1)
         bottom = np.concatenate([mat_lowerleft, mat_lowerright], axis=1)
         mat = np.concatenate([top, bottom], axis=0)
         return mat
 
-    def simplified_get_sorted_eigs_capacitance_matrix(self, N_fourier: int = 4, n_eigs: int | None = None, generalised: bool = True, which: str = 'SM', maxiter: int = 1000, return_eigenvectors: bool = False):
-        if generalised:
-            GCM = self.delta * self.get_generalised_capacitance_matrix()
+    @override
+    def get_sorted_eigs_capacitance_matrix(
+            self,
+            N_fourier: int = 4,
+            generalised: bool = True,
+            hot: bool = False,
+            return_eigenvectors: bool = True,
+            sparse: bool = True,
+            sigma_factor: float = 5,
+            debug_time: bool = False,
+            sorting: Literal[
+                "eve_middle_localization",
+                "eve_localization",
+                "eva_real",
+                "eva_imag",
+                "eve_abs",
+                "eva_first_val",
+            ] = "eva_real"):
+
+        if debug_time:
+            t0 = time.perf_counter()
+
+        mat = self.get_spectral_matrix(
+            N_fourier=N_fourier, generalised=generalised, hot=hot)
+
+        if debug_time:
+            t1 = time.perf_counter()
+            print(f'Construction of spectral matrix took {t1-t0:.9f}s')
+
+        n_eigs = self.N
+
+        if sparse:
+            # To ensure numerical stability we have to add a small sigma ideally in (lambda_0, lambda_1) where lambda_0 is the eigenvalue with the smallest positive real part
+            # because we know that there must be self.N eigenvalues in the first brillouin zone (0, self.big_omega) we choose sigma as below
+            sigma = self.big_omega / (sigma_factor*self.N)
+            sol = sci.sparse.linalg.eigs(
+                mat, k=2*n_eigs, which='LM', sigma=sigma, return_eigenvectors=return_eigenvectors)
+            if debug_time:
+                t2 = time.perf_counter()
+                print(f'Calculation of eigenvalues took {t2-t1:.9f}s')
+
+            D = sol[0] if return_eigenvectors else sol
+            S = sol[1] if return_eigenvectors else None
+
+            D, S = sort_by_eva_real(D, S)
+
+            # We look for the last index of the eigenvalues where the eigenvalue is zero
+            # this should yield D[i_base] = lambda_0 \approx 0
+            i_base = -1
+            for i, d in enumerate(D):
+                if np.isclose(d, 0):
+                    i_base = i
+
+            # Then, starting from i_base, we return the N eigenvalues with the smallest positive real part
+            # These should be all the eigenvalues in the first brillouin zone
+            idx = np.arange(i_base, i_base+n_eigs)
+            D = D[idx]
+            S = S[:, idx] if return_eigenvectors else None
+            if debug_time:
+                t3 = time.perf_counter()
+                print(f'Eva selection took {t3-t2:.9f}s')
         else:
-            GCM = self.delta * self.get_capacitance_matrix()
-        Nres = self.N
-        Mexp = 2 * N_fourier + 1
-        dim_block = Nres * Mexp
-        if n_eigs is None:
-            n_eigs = 2 * Nres
-        Mmod = 1
-        k_mod = np.zeros((2 * Mmod + 1, Nres), dtype=complex)
-        for i in range(Nres):
-            k_mod[Mmod, i] = 1.0
-            k_mod[Mmod - 1, i] = self.epsilon_kappa / \
-                2.0 * np.exp((-1j) * self.phase_kappa[i])
-            k_mod[Mmod + 1, i] = self.epsilon_kappa / \
-                2.0 * np.exp(1j * self.phase_kappa[i])
-        ns = np.arange(-N_fourier, N_fourier + 1)
-        Omega_block = np.diag((-1j) * ns * self.big_omega)
-        I_Nres = np.eye(Nres, dtype=complex)
-        big_Omega = np.kron(I_Nres, Omega_block)
+            # Without sparse acceleration we just calculate all the eigenvalues, select the 2Nres ones with smallest absulute real part (to avoid folding)
+            # and of those select the Nres ones with largest real part
+            if return_eigenvectors:
+                D, S = np.linalg.eig(mat)
+            else:
+                D = np.linalg.eigvals(mat)
+                S = None
 
-        def blk_slice(i):
-            r1 = i * Mexp
-            r2 = (i + 1) * Mexp
-            return slice(r1, r2)
-        big_iK = np.zeros((dim_block, dim_block), dtype=complex)
-        for i in range(Nres):
-            Ki = self.__get_toeplitz_form_from_fourier_coeffs(
-                k_mod[:, i], N_fourier)
-            Ki_inv = np.linalg.inv(Ki)
-            slc = blk_slice(i)
-            big_iK[slc, slc] = Ki_inv
-        I_Mexp = np.eye(Mexp, dtype=complex)
-        big_GCM = np.kron(GCM, I_Mexp)
-        mat_upperleft = (-1j) * big_Omega
-        mat_upperright = 1j * big_iK
-        mat_lowerleft = (-1j) * big_GCM
-        mat_lowerright = (-1j) * big_Omega
-        top = np.concatenate([mat_upperleft, mat_upperright], axis=1)
-        bottom = np.concatenate([mat_lowerleft, mat_lowerright], axis=1)
-        mat = np.concatenate([top, bottom], axis=0)
-        dim_mat = mat.shape[0]
-        if n_eigs >= dim_mat:
-            raise ValueError(
-                f'Requested n_eigs={n_eigs} but matrix dimension is {dim_mat}. Must have n_eigs < matrix dimension.')
-        D, S = np.linalg.eig(mat)
-        idx_selection = np.argsort(np.abs(D.real))[:n_eigs]
-        D = D[idx_selection]
-        S = S[:, idx_selection] if return_eigenvectors else None
-        D_sorted, S_sorted = sort_by_eva_real(D, S)
-        return (D_sorted[-n_eigs // 2:], S_sorted[:, -n_eigs // 2:] if S_sorted is not None else None)
+            idx_selection = np.argsort(np.abs(D.real))[:n_eigs*2]
+            D = D[idx_selection]
+            S = S[:, idx_selection] if return_eigenvectors else None
+            D_sorted, S_sorted = sort_by_eva_real(D, S)
+            D, S = (D_sorted[-n_eigs:], (S_sorted[:, -n_eigs:]
+                    if S_sorted is not None else None))
 
-    def simplified_get_sorted_eigs_capacitance_matrix_hot(self, N_fourier: int = 4, n_eigs: int | None = None, generalised: bool = True, which: str = 'SM', maxiter: int = 1000, return_eigenvectors: bool = False):
-        if generalised:
-            GCM = self.delta * self.get_generalised_capacitance_matrix()
-        else:
-            GCM = self.delta * self.get_capacitance_matrix()
-        Nres = self.N
-        Mexp = 2 * N_fourier + 1
-        dim_block = Nres * Mexp
-        if n_eigs is None:
-            n_eigs = 2 * Nres
-        Mmod = 1
-        k_mod = np.zeros((2 * Mmod + 1, Nres), dtype=complex)
-        for i in range(Nres):
-            k_mod[Mmod, i] = 1.0
-            k_mod[Mmod - 1, i] = self.epsilon_kappa / \
-                2.0 * np.exp((-1j) * self.phase_kappa[i])
-            k_mod[Mmod + 1, i] = self.epsilon_kappa / \
-                2.0 * np.exp(1j * self.phase_kappa[i])
-        ns = np.arange(-N_fourier, N_fourier + 1)
-        Omega_block = np.diag((-1j) * ns * self.big_omega)
-        I_Nres = np.eye(Nres, dtype=complex)
-        big_Omega = np.kron(I_Nres, Omega_block)
-
-        def blk_slice(i):
-            r1 = i * Mexp
-            r2 = (i + 1) * Mexp
-            return slice(r1, r2)
-        big_K = np.zeros((dim_block, dim_block), dtype=complex)
-        big_iK = np.zeros((dim_block, dim_block), dtype=complex)
-        for i in range(Nres):
-            Ki = self.__get_toeplitz_form_from_fourier_coeffs(
-                k_mod[:, i], N_fourier)
-            Ki_inv = np.linalg.inv(Ki)
-            slc = blk_slice(i)
-            big_K[slc, slc] = Ki
-            big_iK[slc, slc] = Ki_inv
-        I_Mexp = np.eye(Mexp, dtype=complex)
-        big_GCM = np.kron(GCM, I_Mexp)
-        alpha = self.delta * self.get_material_matrix()
-        big_alpha = np.kron(alpha, I_Mexp)
-        mat_upperleft = (-1j) * big_Omega
-        mat_upperright = 1j * big_iK
-        mat_lowerleft = (-1j) * big_GCM
-        mat_lowerright = (-1j) * (big_alpha @ big_iK + big_Omega)
-        top = np.concatenate([mat_upperleft, mat_upperright], axis=1)
-        bottom = np.concatenate([mat_lowerleft, mat_lowerright], axis=1)
-        mat = np.concatenate([top, bottom], axis=0)
-        dim_mat = mat.shape[0]
-        if n_eigs >= dim_mat:
-            raise ValueError(
-                f'Requested n_eigs={n_eigs} but matrix dimension is {dim_mat}. Must have n_eigs < matrix dimension.')
-        D, S = np.linalg.eig(mat)
-        idx_selection = np.argsort(np.abs(D.real))[:n_eigs]
-        D = D[idx_selection]
-        S = S[:, idx_selection] if return_eigenvectors else None
-        D_sorted, S_sorted = sort_by_eva_real(D, S)
-        return (D_sorted[-n_eigs // 2:], S_sorted[:, -n_eigs // 2:] if S_sorted is not None else None)
+        D, S = utils.sort_by_method(D, S, sorting)
+        if debug_time:
+            t4 = time.perf_counter()
+            print(f'Final sorting took {t4-t3:.9f}s')
+        return D, S
