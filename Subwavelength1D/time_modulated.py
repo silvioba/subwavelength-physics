@@ -221,12 +221,12 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
 
             D, S = sort_by_eva_real(D, S)
 
-            # We look for the last index of the eigenvalues where the eigenvalue is zero
-            # this should yield D[i_base] = lambda_0 \approx 0
-            i_base = -1
+            # We look for the indices where D has almost 0 real part and then choose the middle one to split between positive and negative solutions
+            i_zeros = []
             for i, d in enumerate(D):
-                if np.isclose(d, 0):
-                    i_base = i
+                if np.isclose(np.real(d), 0):
+                    i_zeros.append(i)
+            i_base = i_zeros[len(i_zeros) // 2]
 
             # Then, starting from i_base, we return the N eigenvalues with the smallest positive real part
             # These should be all the eigenvalues in the first brillouin zone
