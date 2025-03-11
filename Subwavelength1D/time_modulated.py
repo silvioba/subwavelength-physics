@@ -245,12 +245,20 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
                 D = np.linalg.eigvals(mat)
                 S = None
 
+            if debug_time:
+                t2 = time.perf_counter()
+                print(f'Calculation of eigenvalues took {t2-t1:.9f}s')
+
             idx_selection = np.argsort(np.abs(D.real))[:n_eigs*2]
             D = D[idx_selection]
             S = S[:, idx_selection] if return_eigenvectors else None
             D_sorted, S_sorted = sort_by_eva_real(D, S)
             D, S = (D_sorted[-n_eigs:], (S_sorted[:, -n_eigs:]
                     if S_sorted is not None else None))
+
+            if debug_time:
+                t3 = time.perf_counter()
+                print(f'Eva selection took {t3-t2:.9f}s')
 
         D, S = utils.sort_by_method(D, S, sorting)
         if debug_time:
