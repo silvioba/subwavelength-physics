@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sci
 from Subwavelength1D.swp import (
     FiniteSWP1D,
     PeriodicSWP1D,
@@ -95,6 +96,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
     @override
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -106,9 +108,16 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
         if generalised:
-            D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
+            mat = self.get_generalised_capacitance_matrix()
         else:
-            D, S = np.linalg.eigh(self.get_capacitance_matrix())
+            mat = self.get_capacitance_matrix()
+
+        if eigenvalues_only:
+            D = np.linalg.eigvals(mat)
+            S = None
+        else:
+            D, S = np.linalg.eig(mat)
+
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
@@ -214,6 +223,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     @override
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -226,12 +236,17 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
         def eig(alpha):
             if generalised:
-                D, S = np.linalg.eig(
-                    self.get_generalised_capacitance_matrix()(alpha))
+                mat = self.get_generalised_capacitance_matrix()(alpha)
             else:
-                D, S = np.linalg.eigh(self.get_capacitance_matrix()(alpha))
-            D, S = utils.sort_by_method(D, S, sorting)
+                mat = self.get_capacitance_matrix()(alpha)
+
+            if eigenvalues_only:
+                D = np.linalg.eigvals(mat)
+                S = None
+            else:
+                D, S = np.linalg.eig(mat)
             return D, S
+
         return eig
 
 

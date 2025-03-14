@@ -116,7 +116,7 @@ class SWP1D:
 
     def get_material_matrix(self, inverted=False, perform_sqrt=False, return_only_list=False) -> np.ndarray:
         """
-        Get the material matrix such that :math:`VCu = \lambda u` is a solution to the subwavelength problem.
+        Get the material matrix such that VCu = lambda u is a solution to the subwavelength problem.
 
         Returns:
             np.ndarray: The material matrix.
@@ -291,6 +291,7 @@ class FiniteSWP1D(SWP1D):
 
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -407,6 +408,7 @@ class PeriodicSWP1D(SWP1D):
 
     def get_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -420,30 +422,41 @@ class PeriodicSWP1D(SWP1D):
         raise NotImplementedError
 
     def get_band_data(
-        self, generalised=True, nalpha=100
+        self, generalised=True, nalpha=10
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the band data of the capacitance matrix
 
         Args:
-            generalised (bool, optional): doesnt work yet. Defaults to False.
-            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
+            generalised (bool, optional): whether to use the generalised capacitance matrix. Defaults to True.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 10.
 
         Returns:
-            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
-            np.ndarray: (nalpha, self.N) array with band data
+            alphas:np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
+            bands:np.ndarray: (nalpha, self.N) array with band data
         """
         alphas = np.linspace(-np.pi, np.pi, nalpha)
 
-        C = (
-            self.get_generalised_capacitance_matrix()
-            if generalised
-            else self.get_capacitance_matrix()
-        )
-
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
-            D, S = utils.sort_by_eva_real(*np.linalg.eig(C(alpha)))
+            D = self.get_sorted_eigs_capacitance_matrix(
+                eigenvals_only=True)(alpha)
             bands[i, :] = D
 
         return alphas, bands
+
+    def get_band_variation(
+        self, generalised=True, nalpha=10
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the variation of each of the N bands, normalized by N^2
+
+        Args:
+            generalised (bool, optional): whether to use the generalised capacitance matrix. Defaults to True.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 10.
+
+        Returns:
+            np.ndarray: (self.N) band variation of each of the N bands
+        """
+        alphas, bands = self.get_band_data(generalised, nalpha)
+        return np.var(bands, axis=0) * self.N**2

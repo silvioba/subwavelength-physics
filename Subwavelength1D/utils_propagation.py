@@ -5,6 +5,19 @@ import matplotlib.pyplot as plt
 from Subwavelength1D.classic import FiniteSWP1D
 
 
+def get_Q_matrix(k: int | float, x: int | float) -> np.ndarray:
+    """Let u(x) = Ae^{ikx} + Be^{-ikx}. Then the Q matrix is defined as the matrix such that Q(k,x)@(A,B)^T = (u(x), u'(x))^T.
+
+    Args:
+        k (int | float): Wave number
+        x (int | float, optional): Spatal position for change of basis.
+
+    Returns:
+        np.ndarray: The Q matrix
+    """
+    return np.array([[np.exp(1j * k * x), np.exp(-1j * k * x)], [1j * k * np.exp(1j * k * x), -1j * k * np.exp(-1j * k * x)]])
+
+
 def get_subwavelength_propagation_matrix_single(l, s, k):
     return np.array([[1 - l * s * k, s], [-l * k, 1]])
 

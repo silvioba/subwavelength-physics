@@ -100,6 +100,50 @@ def sort_by_method(
         raise ValueError("Unknown sorting method")
 
 
+class EigenvectorPathTracker:
+    """
+    A class to track the path of eigenvectors and eigenvalues through iterations. Tracking is achieved using dot product similarity on the eigenvectors.
+    Necessarily fails at exceptional points or when the step size is too large.
+    Attributes:
+        initial_sorting_method (str): The method used for initial sorting of eigenvalues and eigenvectors.
+        D (np.array): The array of eigenvalues.
+        S (np.array): The array of eigenvectors.
+    Methods:
+        __init__(initial_sorting_method="eva_real"):
+            Initializes the EigenvectorPathTracker with a specified initial sorting method.
+        next(D: np.array, S: np.array):
+            Sorts D and S to match the stored eigenvectors.
+    """
+
+    def __init__(self, initial_sorting_method="eva_real"):
+        self.inital_sorting_method = initial_sorting_method
+        self.D = None
+        self.S = None
+
+    def _initial(self, D: np.array, S: np.array):
+        D, S = sort_by_method(D, S, self.inital_sorting_method)
+        self.D, self.S = D.copy(), S.copy()
+        return D, S
+
+    def next(self, D: np.array, S: np.array):
+        if self.D is None:
+            return self._initial(D, S)
+        else:
+            Dn = np.zeros_like(D)
+            Sn = np.zeros_like(S)
+            for i in range(D.shape[0]):
+                # Finding the index of the previous eigenvector that is closest to the current one
+                idx = np.argmax(np.abs(S[:, i].T @ self.S))
+                # Asserting no index reuse
+                assert Dn[idx] == 0
+                # Storing the eigenvalue and eigenvector at the appropriate index
+                Dn[idx], Sn[:, idx] = D[i], S[:, i]
+                # Setting the used eigenvector to zero so that it is not used again
+                self.S[:, idx] = 0
+            self.D, self.S = Dn.copy(), Sn.copy()
+            return Dn, Sn
+
+
 def plot_eigenvalues(D, colorfunc=None, real=True, ax: Axes | None = None) -> Axes:
     """
     Plots the eigenvalues.
