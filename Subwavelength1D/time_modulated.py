@@ -41,7 +41,8 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
 
     def __init__(self, epsilon_kappa: float = 0, phase_kappa: List[float] = None, epsilon_rho: float = 0, phase_rho: List[float] = None, big_omega: float | None = None, **pars):
         super().__init__(**pars)
-        self.epsilon_kappa = epsilon_kappa
+
+        self.set_epsilon_kappa(epsilon_kappa)
         self.phase_kappa = np.array(
             phase_kappa, dtype=float) if phase_kappa is not None else np.zeros(self.N)
         self.epsilon_rho = epsilon_rho
@@ -49,6 +50,18 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
             phase_rho, dtype=float) if phase_rho is not None else np.zeros(self.N)
         self.big_omega = big_omega if big_omega is not None else np.sqrt(
             self.delta)
+
+    def set_epsilon_kappa(self, epsilon_kappa: float | int | complex | np.ndarray):
+        if (
+            isinstance(epsilon_kappa, float)
+            or isinstance(epsilon_kappa, int)
+            or isinstance(epsilon_kappa, complex)
+        ):
+            epsilon_kappa = (
+                np.ones(self.N, dtype=complex if isinstance(
+                    epsilon_kappa, complex) else float) * epsilon_kappa
+            )
+        self.epsilon_kappa = epsilon_kappa
 
     def __get_capacitance_diagonal(self) -> np.ndarray:
         """
@@ -130,9 +143,9 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
             # For each resonator we have a Fourier expansion of the inverse material modulation:
             # (self.epsilon_kappa / 2.0 * np.exp(-1j * self.phase_kappa[i]), 1, self.epsilon_kappa / 2.0 * np.exp(1j * self.phase_kappa[i]))
             kappa_inv_coeffs[Mmod, i] = 1.0
-            kappa_inv_coeffs[Mmod - 1, i] = self.epsilon_kappa / \
+            kappa_inv_coeffs[Mmod - 1, i] = self.epsilon_kappa[i] / \
                 2.0 * np.exp(-1j * self.phase_kappa[i])
-            kappa_inv_coeffs[Mmod + 1, i] = self.epsilon_kappa / \
+            kappa_inv_coeffs[Mmod + 1, i] = self.epsilon_kappa[i] / \
                 2.0 * np.exp(1j * self.phase_kappa[i])
 
         # Helper function to get the slice of length (Mexp) containing all Fourier coefficients corresponding to the i-th resonator
