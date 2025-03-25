@@ -225,7 +225,7 @@ class FiniteSWP1D(SWP1D):
         l: np.ndarray | float,
         s: np.ndarray | float,
         v_in: np.ndarray | float | complex | None = None,
-        v_out: float | None = None,
+        v_out: float | complex | None = None,
         delta: float | None = None,
         omega: float | complex | None = None,
         uin=lambda x: np.sin(x),
@@ -252,14 +252,6 @@ class FiniteSWP1D(SWP1D):
                 np.ones(N, dtype=complex if isinstance(
                     v_in, complex) else float) * v_in
             )
-
-        if (
-            isinstance(v_out, float)
-            or isinstance(v_out, int)
-            or isinstance(v_out, complex)
-        ):
-            v_out = complex(v_out) if isinstance(
-                v_out, complex) else float(v_out)
 
         assert (
             len(l) == N
@@ -364,17 +356,6 @@ class PeriodicSWP1D(SWP1D):
             v_in = (
                 np.ones(N, dtype=complex if isinstance(
                     v_in, complex) else float) * v_in
-            )
-
-        if (
-            isinstance(v_out, float)
-            or isinstance(v_out, int)
-            or isinstance(v_out, complex)
-        ):
-            v_out = (
-                np.ones(N, dtype=complex if isinstance(
-                    v_out, complex) else float)
-                * v_in
             )
 
         assert len(l) == N, "The l of the l array must be equal to N"

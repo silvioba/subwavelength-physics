@@ -104,7 +104,7 @@ def plot_variance_band_functions(
     return ax
 
 
-def custom_colormap_with_lognorm(a, vmin, vmax, include_white=False):
+def custom_colormap_with_lognorm(a, vmin, vmax, include_white=False, include_black=False):
     """
     Generates a custom colormap with graded red above `a` and graded blue below `a`,
     with logarithmic normalization.
@@ -119,9 +119,16 @@ def custom_colormap_with_lognorm(a, vmin, vmax, include_white=False):
     """
     if include_white:
         colors = [
-            (0.0, (1.0, 1.0, 1.0)),  # Very light blue (near-white)
+            (0.0, (1.0, 1.0, 1.0)),  # White
             (0.1, (0.85, 0.85, 1.0)),  # Very light blue (near-white)
             (0.4, (0.0, 0.0, 1.0)),  # Blue
+            (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
+            (1.0, (1.0, 0.0, 0.0)),  # Red
+        ]
+    elif include_black:
+        colors = [
+            (0.0, (0.0, 0.0, 0.0)),  # Black
+            (0.2, (0.0, 0.0, 1.0)),  # Blue
             (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
             (1.0, (1.0, 0.0, 0.0)),  # Red
         ]
@@ -167,6 +174,9 @@ def plot_band_function_variance_as_color(
     nalpha: int = 100,
     xticks: bool = True,
     yticks: bool = True,
+    show_colorbar: bool = True,
+    cmap=None,
+    norm=None,
 ) -> Tuple[Figure, Axes]:
     """
     Plots the band function of a classic quasi periodic problem coloring the bands based on their variance
@@ -187,11 +197,12 @@ def plot_band_function_variance_as_color(
     vars = np.var(bands, axis=0)
     if ax is None:
         fig, ax = plt.subplots(figsize=settings.figure_size)
-    cmap, norm = custom_colormap_with_lognorm(
-        vars[0],
-        vmin=1e-14,
-        vmax=np.max(vars),
-    )
+    if cmap is None or norm is None:
+        cmap, norm = custom_colormap_with_lognorm(
+            vars[0],
+            vmin=1e-14,
+            vmax=np.max(vars),
+        )
 
     for i in range(bands.shape[1]):  # Loop through each line
         ax.plot(alphas, bands[:, i], color=cmap(norm(vars[i])))
@@ -203,7 +214,8 @@ def plot_band_function_variance_as_color(
     else:
         ax.set_xticks([-np.pi, 0, np.pi], [r"$-\pi$", r"$0$", r"$\pi$"])
 
-    cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
+    if show_colorbar:
+        cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
     return fig, ax
 
 
