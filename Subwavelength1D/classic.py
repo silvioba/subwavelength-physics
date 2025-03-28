@@ -136,8 +136,6 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
     def get_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
-        select='a',
-        select_range=None,
         generalised=True,
         hermitian_acceleration=True,
         sorting: Literal[
