@@ -20,14 +20,14 @@ plt.rcParams.update(settings.matplotlib_params)
 class DisorderedCommon:
     @classmethod
     def from_blocks(
-        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+        cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params
     ) -> Self:
         raise NotImplementedError
 
     @classmethod
     def from_blocks_random(
         cls,
-        blocks: List[Tuple[List[int | float]]],
+        blocks: List[Tuple[Tuple[int | float]]],
         n_reps: int,
         weights: List[float] | None = None,
         seed=42,
@@ -170,7 +170,7 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
 
     @classmethod
     def from_blocks(
-        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+        cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params
     ) -> Self:
         """
         Constructs a finite classical system of disorded blocks of resonators
@@ -194,8 +194,8 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
                     s[-1] += ss[0]
             else:
                 # Regular Block
-                l = l + ll
-                s = s + ss
+                l = l + list(ll)
+                s = s + list(ss)
         s = s[:-1]
         c = cls(N=len(l), l=np.array(l), s=np.array(s), **params)
         c.__setattr__("idxs", idxs)
@@ -229,7 +229,7 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
 
     @classmethod
     def from_blocks(
-        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+        cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params
     ) -> Self:
         """
         Constructs a finite classical system of disorded blocks of resonators
