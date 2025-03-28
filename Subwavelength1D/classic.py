@@ -162,6 +162,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
                 else:
                     D, St = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
                     S = Vl.reshape(-1, 1) * St
+                    S = S / np.linalg.norm(S, axis=0)
             else:
                 cdiag = self.__get_capacitance_diagonal()
                 coffdiag = self.__get_capacitance_offdiagonal()
