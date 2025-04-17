@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from scipy.signal import correlate
 
@@ -34,6 +35,74 @@ def get_metaatom_occurrence(sequence, metaatoms):
                 occurrences[metaatoms.index(metaatom)] += 1
                 index += len(metaatom)
                 break
+        else:
+            raise ValueError(
+                f"Metaatom {sequence[index:index+len(metaatoms[0])]} not found in {metaatoms}")
+
+    return occurrences
+
+
+def get_metaatom_occurrence_dict(sequence, metaatoms):
+    """
+    Calculates metaatom occurrences using a dictionary for faster lookups.
+
+    Assumes metaatoms is sorted by ascending sequence length.
+    """
+
+    # --- Preprocessing ---
+    # Ensure metaatoms are tuples for hashing
+    metaatoms_tuple = [tuple(ma) for ma in metaatoms]
+    metaatom_map = {ma: idx for idx, ma in enumerate(metaatoms_tuple)}
+
+    if not metaatoms_tuple:
+        if sequence:
+            raise ValueError("No metaatoms provided to parse the sequence.")
+        else:
+            return []  # Empty sequence, empty metaatoms -> 0 occurrences
+
+    max_metaatom_len = len(metaatoms_tuple[-1]) if metaatoms_tuple else 0
+
+    # --- Processing ---
+    # Add a termination symbol (using None as it's unlikely to be in the data)
+    # Using a tuple for potential slicing performance benefits
+    # Use None or another unique sentinel
+    sequence_tuple = tuple(sequence + [0])
+    seq_len = len(sequence_tuple)
+    occurrences = [0] * len(metaatoms)
+    index = 0
+
+    while index < seq_len:  # Stop before the sentinel
+        found_match = False
+        # Iterate lengths from longest possible down to 1
+        # Start with min(max_metaatom_len, remaining sequence length)
+        for length in range(min(max_metaatom_len, seq_len - index), 0, -1):
+            sub_sequence = sequence_tuple[index: index + length]
+
+            if sub_sequence in metaatom_map:
+                ma_idx = metaatom_map[sub_sequence]
+                occurrences[ma_idx] += 1
+                index += length
+                found_match = True
+                break  # Found the longest match for this position
+
+        if not found_match:
+            # If the loop completes without finding any match (even length 1)
+            # Check if the single element itself is a metaatom if not caught above
+            # (The loop range already covers length 1)
+            raise ValueError(
+                f"Sequence segment starting at index {index} "
+                f"with element '{sequence_tuple[index]}' does not match "
+                f"the start of any known metaatom."
+            )
+            # Or, if single elements *not* part of a longer metaatom should be skipped:
+            # index += 1 # Skip the unmatchable element (depends on desired behavior)
+
+    # Check if we consumed the entire original sequence
+    if index != len(sequence):
+        # This can happen if the loop exited early but didn't reach the end
+        # typically because the remaining part couldn't be matched.
+        # The ValueError above should catch this, but adding a check for safety.
+        pass  # The ValueError inside the loop should handle incomplete parsing
 
     return occurrences
 
@@ -55,7 +124,8 @@ def get_metaatom_spectrum(sequence: List[int],
                           bulk_block: Tuple[Tuple[int | float]] = None,
                           defect_block: Tuple[Tuple[int | float]] = None,
                           d=10,
-                          midgap=1.5
+                          midgap=1.5,
+                          use_hashmap: bool = True,
                           ):
     if not bulk_block:
         bulk_block = ((2,), (2,))
@@ -72,7 +142,11 @@ def get_metaatom_spectrum(sequence: List[int],
             (1, 1, 1, 1, 1, 0), (1, 1, 0, 1, 1, 0),
         ]
 
-    occs = get_metaatom_occurrence(sequence, metaatoms)
+    if use_hashmap:
+        # Use the dictionary-based method for faster lookups
+        occs = get_metaatom_occurrence_dict(sequence, metaatoms)
+    else:
+        occs = get_metaatom_occurrence(sequence, metaatoms)
 
     D_calc = []
     for i, num_occ in enumerate(occs):
