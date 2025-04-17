@@ -403,7 +403,7 @@ class PeriodicSWP1D(SWP1D):
         raise NotImplementedError
 
     def get_band_data(
-        self, generalised=True, nalpha=10
+        self, generalised=True, nalpha=10, alphas=None
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the band data of the capacitance matrix
@@ -416,18 +416,20 @@ class PeriodicSWP1D(SWP1D):
             alphas:np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
             bands:np.ndarray: (nalpha, self.N) array with band data
         """
-        alphas = np.linspace(-np.pi, np.pi, nalpha)
+        if alphas is None:
+            alphas = np.linspace(-np.pi, np.pi, nalpha)
 
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
             D = self.get_sorted_eigs_capacitance_matrix(
-                eigenvals_only=True)(alpha)
+                eigenvals_only=True,
+                generalised=generalised)(alpha)
             bands[i, :] = D
 
         return alphas, bands
 
     def get_band_variation(
-        self, generalised=True, nalpha=10
+        self, generalised=True, nalpha=10, n2_normalization=True,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the variation of each of the N bands, normalized by N^2
@@ -440,4 +442,4 @@ class PeriodicSWP1D(SWP1D):
             np.ndarray: (self.N) band variation of each of the N bands
         """
         alphas, bands = self.get_band_data(generalised, nalpha)
-        return np.var(bands, axis=0) * self.N**2
+        return np.var(bands, axis=0) * self.N**2 if n2_normalization else np.var(bands, axis=0)
