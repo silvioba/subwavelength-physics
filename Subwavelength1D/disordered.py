@@ -1,6 +1,8 @@
 import numpy as np
+import scipy as sci
 
-from Subwavelength1D.classic import ClassicFiniteSWP1D
+from Subwavelength1D.classic import ClassicFiniteSWP1D, convert_finite_into_periodic
+from Subwavelength1D.swp import FiniteSWP1D
 
 from Subwavelength1D.nonreciprocal import NonReciprocalFiniteSWP1D, NonReciprocalPeriodicSWP1D
 
@@ -17,7 +19,7 @@ from Utils.utils_general import *
 plt.rcParams.update(settings.matplotlib_params)
 
 
-class DisorderedCommon:
+class DisorderedCommon(FiniteSWP1D):
     @classmethod
     def from_blocks(
         cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params
@@ -58,6 +60,14 @@ class DisorderedCommon:
             idxs=np.random.choice(len(blocks), n_reps, p=weights),
             **params,
         )
+
+    def get_sN(self):
+        """Get the final spacing of the system.
+
+        Returns:
+            float: Final spacing of the system
+        """
+        return self.blocks[self.idxs[-1]][1][-1]
 
     def get_block_list(self):
         """Get the list of len(self.idxs) containing the corresponding blocks, as specified by self.idx.
@@ -201,6 +211,42 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
         c.__setattr__("idxs", idxs)
         c.__setattr__("blocks", blocks)
         return c
+
+    def get_Thouless_ratios(self, D=None, method='kde', W=0.1, knn=10, bw=0.01):
+        if D is None:
+            D, _ = self.get_sorted_eigs_capacitance_matrix(
+                eigenvalues_only=True)
+        pwp = convert_finite_into_periodic(self, self.get_sN())
+        alphas = [0, np.pi]
+
+        _, bands = pwp.get_band_data(alphas=alphas)
+
+        energy_shifts = np.abs(bands[1, :] - bands[0, :])
+
+        if method == 'kde':
+            kde = sci.stats.gaussian_kde(D, bw_method=bw)
+            rho_E = (self.N / self.L)*kde.evaluate(D)
+
+            level_spacings = 1.0 / (rho_E * self.L)
+
+        elif method == 'w_knn':
+            level_spacings = np.full_like(D, np.nan, dtype=float)
+
+            # Vectorised search: for each E_i find indices of window [E_i-W/2, E_i+W/2]
+            for i, Ei in enumerate(D):
+                lo = np.searchsorted(D, Ei - W / 2, side='left')
+                lo = max(i-knn, lo)
+                hi = np.searchsorted(D, Ei + W / 2, side='right')
+                hi = min(i+knn, hi)
+
+                # Need at least two *gaps* → three levels
+                if hi - lo >= 3:
+                    # all gaps inside the window
+                    local_gaps = np.diff(D[lo:hi])
+                    level_spacings[i] = local_gaps.mean()
+
+        thouless_ratios = energy_shifts / level_spacings
+        return thouless_ratios, energy_shifts, level_spacings
 
 
 class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCommon):
