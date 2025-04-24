@@ -10,9 +10,12 @@ import matplotlib.cm as cm
 from Utils.settings import settings as settings
 
 from Utils.utils_general import *
+import Utils.utils_propagation as utils_propagation
 
+import Subwavelength1D.swp as swp
 import Subwavelength1D.classic as classic
 import Subwavelength1D.disordered as disordered
+
 from typing import Literal, Callable, Tuple, Self, List, override
 
 import copy
@@ -104,7 +107,7 @@ def plot_variance_band_functions(
     return ax
 
 
-def custom_colormap_with_lognorm(a, vmin, vmax, include_white=False, include_black=False):
+def custom_colormap_with_lognorm(a, vmin, vmax, map_type="classic"):
     """
     Generates a custom colormap with graded red above `a` and graded blue below `a`,
     with logarithmic normalization.
@@ -113,11 +116,12 @@ def custom_colormap_with_lognorm(a, vmin, vmax, include_white=False, include_bla
     a (float): The threshold value for the color transition (in log space).
     vmin (float): The minimum value for normalization (must be > 0).
     vmax (float): The maximum value for normalization (must be > 0).
+    map_type (str): Type of colormap to generate. Options are 'classic', 'include_white', or 'include_black'.
 
     Returns:
     tuple: (LinearSegmentedColormap, LogNorm) for custom plotting.
     """
-    if include_white:
+    if map_type == "include_white":
         colors = [
             (0.0, (1.0, 1.0, 1.0)),  # White
             (0.1, (0.85, 0.85, 1.0)),  # Very light blue (near-white)
@@ -125,20 +129,23 @@ def custom_colormap_with_lognorm(a, vmin, vmax, include_white=False, include_bla
             (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
             (1.0, (1.0, 0.0, 0.0)),  # Red
         ]
-    elif include_black:
+    elif map_type == "include_black":
         colors = [
             (0.0, (0.0, 0.0, 0.0)),  # Black
-            (0.2, (0.0, 0.0, 1.0)),  # Blue
-            (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
-            (1.0, (1.0, 0.0, 0.0)),  # Red
-        ]
-    else:
-        colors = [
-            (0.0, (0.85, 0.85, 1.0)),  # Very light blue (near-white)
             (0.4, (0.0, 0.0, 1.0)),  # Blue
             (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
             (1.0, (1.0, 0.0, 0.0)),  # Red
         ]
+    elif map_type == "classic":
+        colors = [
+            (0.0, (0.7, 0.7, 1.0)),  # Very light blue (near-white)
+            (0.4, (0.0, 0.0, 1.0)),  # Blue
+            (0.5, (0.5, 0.0, 0.5)),  # Purple at the transition point
+            (1.0, (1.0, 0.0, 0.0)),  # Red
+        ]
+    else:
+        raise ValueError(
+            "Invalid map_type. Choose 'classic', 'include_white', or 'include_black'.")
 
     # Create the colormap
     cmap = LinearSegmentedColormap.from_list("custom_colormap", colors)
@@ -219,6 +226,64 @@ def plot_band_function_variance_as_color(
     return fig, ax
 
 
+def plot_band_function_Thouless_ratio_as_color(
+    dp: disordered.DisorderedClassicFiniteSWP1D,
+    fig: Figure | None = None,
+    ax: Axes | None = None,
+    generalised: bool = True,
+    nalpha: int = 100,
+    xticks: bool = True,
+    yticks: bool = True,
+    show_colorbar: bool = True,
+    cmap=None,
+    norm=None,
+) -> Tuple[Figure, Axes]:
+    """
+    Plots the band function of a classic quasi periodic problem coloring the bands based on their variance
+
+    Args:
+        dp (disordered.DisorderedClassicFiniteSWP1D): Classic Disordered Wave Problem
+        fig (Figure | None): matplotlib figure to plot on. Defaults to None
+        ax (Axes | None): matplotlib axes to plot on. Defaults to None
+        generalised (bool, optional): whether to use the generalised capacitance matrix. Defaults to True.
+        nalpha (int, optional): Number of quasifrequencies to sample in [-np.pi, np.pi). Defaults to 100.
+        xticks (bool, optional): whether to plot xticks. Defaults to True.
+        yticks (bool, optional): whether to plot yticks. Defaults to True.
+
+    Returns:
+        Tuple[Figure, Axes]: Matplotlib figure and axes plotted on
+    """
+    pwp = dp.get_periodized_system()
+    alphas, bands = pwp.get_band_data(generalised, nalpha)
+    bands = np.real(bands)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=settings.figure_size)
+
+    thouless_ratios = dp.get_Thouless_ratios()
+    if cmap is None or norm is None:
+        cmap, norm = custom_colormap_with_lognorm(
+            1e-1,
+            vmin=1e-4,
+            vmax=1,
+            map_type="classic",
+        )
+
+    for i in range(bands.shape[1]):  # Loop through each line
+        ax.plot(alphas, bands[:, i], color=cmap(norm(thouless_ratios[i])))
+
+    if not yticks:
+        ax.set_yticks([])
+    if not xticks:
+        ax.set_xticks([])
+    else:
+        ax.set_xticks([-np.pi, 0, np.pi],
+                      [r"$-\pi / \mathsf{L}$", r"$0$", r"$\pi/ \mathsf{L}$"])
+
+    if show_colorbar:
+        cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
+    return fig, ax
+
+
 def plot_variance_vs_localisation(
     fwp: classic.ClassicFiniteSWP1D,
     s_N: int,
@@ -249,6 +314,75 @@ def plot_variance_vs_localisation(
     vars = np.var(bands, axis=0)
     ax.semilogx(vars, np.linalg.norm(S, ord=np.inf, axis=0), c)
     return fig, ax
+
+
+def plot_Thouless_ratio_vs_localisation(
+    dp: disordered.DisorderedClassicFiniteSWP1D,
+    fig: Figure | None = None,
+    ax: Axes | None = None,
+    c: str | None = "k.",
+    lower_band_only=False,
+    bw=0.01,
+) -> Tuple[Figure, Axes]:
+    """
+    For a classical finite system of resonators plots the variance of the band functions of the corresponding quasi periodic system against the localisation degree (in form of np.linalg.norm(ord=np.inf)) of the corresponding eigenvector
+
+    Args:
+        dp (disordered.DisorderedClassicFiniteSWP1D): Classic Disordered subwavelength problem
+        fig (Figure | None, optional): matplotlib figure to plot on. Defaults to None.
+        ax (Axes | None, optional): matplotlib axes to plot on. Defaults to None.
+        generalised (bool, optional):  whether to use the generalised capacitance matrix. Defaults to True.
+        nalpha (int, optional): number of quasifrequencies to sample in [-np.pi, np.pi). Defaults to 100.
+        c (str | None, optional): color and marker to use for plot. Defaults to "k.".
+
+    Returns:
+        Tuple[Figure, Axes]: scatter plot of the variance versus localisation with semilogx axes
+    """
+    D, S = dp.get_sorted_eigs_capacitance_matrix()
+    thouless_ratios = dp.get_Thouless_ratios(D=D, bw=bw)
+
+    if lower_band_only:
+        ax.semilogx(thouless_ratios[D < 1.5], np.linalg.norm(
+            S[:, D < 1.5], ord=4, axis=0), c)
+    else:
+        ax.semilogx(thouless_ratios, np.linalg.norm(S, ord=4, axis=0), c)
+
+    return fig, ax
+
+
+def scatter_eigenval_Thouless_ratio_vs_localisation(
+    dp: disordered.DisorderedClassicFiniteSWP1D,
+    fig: Figure,
+    ax: Axes,
+    cmap=None,
+    norm=None,
+    lower_band_only=True,
+    draw_colorbar=True,
+    s=8,
+    bw=0.01,
+) -> None:
+    D, S = dp.get_sorted_eigs_capacitance_matrix()
+    thouless_ratios = dp.get_Thouless_ratios(D=D, bw=bw)
+
+    if lower_band_only:
+        S = S[:, D < 1.5]
+        thouless_ratios = thouless_ratios[D < 1.5]
+        D = D[D < 1.5]
+
+    if cmap is None or norm is None:
+        cmap, norm = custom_colormap_with_lognorm(
+            1e-1,
+            vmin=1e-7,
+            vmax=1,
+            map_type="classic",
+        )
+
+    ax.scatter(D, np.linalg.norm(S, ord=4, axis=0),
+               c=thouless_ratios, cmap=cmap, norm=norm, s=s)
+
+    if draw_colorbar:
+        cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
+        cbar.set_label(r"Thouless ratio")
 
 
 def plot_defect(
@@ -568,3 +702,79 @@ def plot_variance_perturbation_heatmap(
         )
         mp = plt.cm.ScalarMappable(norm=norm, cmap=cmap2)
         cbar = plt.colorbar(mp, ax=ax)
+
+
+def plot_band_gap(mat, k_min=1e-1, k_max=5, n_pts=100, ax=None):
+    """Plots the absolute value of the propagation matrix eigenvalues as a function of the wave number k.
+
+    Args:
+        mat (_type_): Mapping k -> propapation matrixiption_
+        k_min (_type_, optional): _description_. Defaults to 1e-1.
+        k_max (int, optional): _description_. Defaults to 5.
+        n_pts (int, optional): _description_. Defaults to 100.
+        ax (_type_, optional): _description_. Defaults to None.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    ks = np.linspace(k_min, k_max, n_pts)
+    eves = np.zeros((len(ks), 2), dtype=complex)
+    for i, k in enumerate(ks):
+        D, S = sort_by_eva_abs(*np.linalg.eig(mat(k)))
+        eves[i] = D
+
+    ax.semilogy(ks, np.abs(eves[:, 0]), 'b-')
+    ax.semilogy(ks, np.abs(eves[:, 1]), 'r-')
+
+
+def plot_source_sink(mat, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, ax=None):
+    """Plots the source and sink of a given propagation matrix as a function of the wave number k.
+
+    Args:
+        mat (_type_): Mapping k -> propapation matrix.
+        k_min (_type_, optional): _description_. Defaults to 1e-1.
+        k_max (int, optional): _description_. Defaults to 5.
+        n_pts (int, optional): _description_. Defaults to 1000.
+        ylim (_type_, optional): _description_. Defaults to None.
+        ax (_type_, optional): _description_. Defaults to None.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    ks = np.linspace(k_min, k_max, n_pts)
+    zs = np.zeros((len(ks), 2), dtype=float)
+    gap = np.empty(len(ks), dtype=bool)
+    for i, k in enumerate(ks):
+        D, S = sort_by_eva_abs(*np.linalg.eig(mat(k)))
+        gap[i] = np.imag(D[0]) < 1e-5
+        # Source
+        zs[i, 0] = np.real(S[0, 0] / S[1, 0])
+        # Sink
+        zs[i, 1] = np.real(S[0, 1] / S[1, 1])
+    ax.plot(ks[gap], zs[gap, 0], 'b.')
+    ax.plot(ks[gap], zs[gap, 1], 'r.')
+    if ylim:
+        ax.set_ylim(1-ylim, 1+ylim)
+
+
+def plot_block_characteristics(block, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, axes=None):
+    if axes is None:
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    mat_fn = utils_propagation.propagation_matrix_block_function(
+        block, subwavelength=True)
+    plot_band_gap(mat_fn, k_min, k_max, n_pts, ax=axes[0])
+    plot_source_sink(mat_fn, k_min, k_max, n_pts, ylim, ax=axes[1])
+
+
+def visualize_spectrum(sp: swp.FiniteSWP1D, j, semilogy=False, axes=None):
+    if not axes:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    D, S = sp.get_sorted_eigs_capacitance_matrix()
+    axes[0].plot(D, 'k.')
+    axes[0].plot(j, D[j], 'ro')
+    if semilogy:
+        sv = np.abs(S[:, j])
+        axes[1].semilogy(sv, 'k-')
+    else:
+        sv = np.real(S[:, j])
+        axes[1].plot(sv, 'k-')
+    if semilogy:
+        axes[1].set_yscale('log')

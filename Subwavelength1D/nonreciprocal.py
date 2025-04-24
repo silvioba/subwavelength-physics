@@ -5,7 +5,7 @@ from Subwavelength1D.swp import (
     PeriodicSWP1D,
 )
 
-import Subwavelength1D.utils_propagation as utils_propagation
+import Utils.utils_propagation as utils_propagation
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors

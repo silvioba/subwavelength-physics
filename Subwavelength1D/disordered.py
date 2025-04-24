@@ -1,7 +1,7 @@
 import numpy as np
 import scipy as sci
 
-from Subwavelength1D.classic import ClassicFiniteSWP1D, convert_finite_into_periodic
+from Subwavelength1D.classic import *
 from Subwavelength1D.swp import FiniteSWP1D
 
 from Subwavelength1D.nonreciprocal import NonReciprocalFiniteSWP1D, NonReciprocalPeriodicSWP1D
@@ -212,11 +212,21 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
         c.__setattr__("blocks", blocks)
         return c
 
-    def get_Thouless_ratios(self, D=None, method='kde', W=0.1, knn=10, bw=0.01):
+    def get_periodized_system(self) -> ClassicPeriodicSWP1D:
+        """Get the periodized system of the disordered system by calculating s_N and converting the finite system into a periodic one.
+
+        Returns:
+            pwp: Periodized system
+        """
+        dp = copy.deepcopy(self)
+        pwp = convert_finite_into_periodic(dp, self.get_sN())
+        return pwp
+
+    def get_Thouless_ratios(self, D=None, method='kde', W=0.1, knn=10, bw=0.01, return_all=False):
         if D is None:
             D, _ = self.get_sorted_eigs_capacitance_matrix(
                 eigenvalues_only=True)
-        pwp = convert_finite_into_periodic(self, self.get_sN())
+        pwp = self.get_periodized_system()
         alphas = [0, np.pi]
 
         _, bands = pwp.get_band_data(alphas=alphas)
@@ -245,8 +255,20 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
                     local_gaps = np.diff(D[lo:hi])
                     level_spacings[i] = local_gaps.mean()
 
+        elif method == 'k-closest':
+            level_spacings = np.full_like(D, np.nan, dtype=float)
+
+            # Vectorised search: for each E_i find indices of k-closest levels
+            for i, Ei in enumerate(D):
+                # Find k closest neighbors (excluding self)
+                diffs = np.abs(D - Ei)
+                diffs[i] = np.inf  # exclude self
+                closest_indices = np.argsort(diffs)[:knn]
+                local_gaps = np.diff(np.sort(D[closest_indices]))
+                level_spacings[i] = local_gaps.mean()
+
         thouless_ratios = energy_shifts / level_spacings
-        return thouless_ratios, energy_shifts, level_spacings
+        return (thouless_ratios, energy_shifts, level_spacings) if return_all else thouless_ratios
 
 
 class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCommon):
