@@ -94,7 +94,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         return self.get_material_matrix() @ self.get_capacitance_matrix()
 
     @override
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
@@ -124,32 +124,8 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
     def compute_propagation_matrix(
         self, space_from_end=1, subwavelength=True
     ) -> np.ndarray:
-        if self.omega is None:
-            raise ValueError("omega must be set, is currently None")
-        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
-            raise NotImplementedError(
-                "Propagation matrix is implemented only for structure with same wave number inside and outside."
-            )
-
-        pm = np.eye(2)
-        for i in range(self.N - 1):
-            p = utils_propagation.propagation_matrix_single(
-                l=self.l[i],
-                s=self.s[i],
-                k=self.k_in[i],
-                delta=self.delta,
-                subwavelength=subwavelength,
-            )
-            pm = p @ pm
-        p = utils_propagation.propagation_matrix_single(
-            l=self.l[-1],
-            s=space_from_end,
-            k=self.k_in[i],
-            delta=self.delta,
-            subwavelength=subwavelength,
-        )
-        pm = p @ pm
-        return pm
+        raise NotImplementedError(
+            "compute_propagation_matrix is not implemented for NonReciprocalFiniteSWP1D")
 
 
 class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
@@ -211,7 +187,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         return C
 
     @override
-    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
 
@@ -221,7 +197,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         return lambda alpha: self.get_material_matrix() @ self.get_capacitance_matrix()(alpha)
 
     @override
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
@@ -236,7 +212,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
         def eig(alpha):
             if generalised:
-                mat = self.get_generalised_capacitance_matrix()(alpha)
+                mat = self.compute_generalised_capacitance_matrix()(alpha)
             else:
                 mat = self.get_capacitance_matrix()(alpha)
 

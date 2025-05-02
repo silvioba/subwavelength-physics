@@ -212,63 +212,52 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
         c.__setattr__("blocks", blocks)
         return c
 
-    def get_periodized_system(self) -> ClassicPeriodicSWP1D:
+    @override
+    def get_periodized_system(self, sN=None) -> ClassicPeriodicSWP1D:
         """Get the periodized system of the disordered system by calculating s_N and converting the finite system into a periodic one.
 
         Returns:
             pwp: Periodized system
         """
-        dp = copy.deepcopy(self)
-        pwp = convert_finite_into_periodic(dp, self.get_sN())
+        if sN is None:
+            sN = self.get_sN()
+        pwp = convert_finite_into_periodic(self, sN)
         return pwp
 
-    def get_Thouless_ratios(self, D=None, method='kde', W=0.1, knn=10, bw=0.01, return_all=False):
-        if D is None:
-            D, _ = self.get_sorted_eigs_capacitance_matrix(
-                eigenvalues_only=True)
-        pwp = self.get_periodized_system()
-        alphas = [0, np.pi]
+    def get_Pj(self, j, subwavelength=True):
+        """Get the Propagation matrix for the j-th resonator.
 
-        _, bands = pwp.get_band_data(alphas=alphas)
+        Args:
+            j (int): Index of the resonator
+            subwavelength (bool, optional): Whether to use subwavelength approximation. Defaults to True.
 
-        energy_shifts = np.abs(bands[1, :] - bands[0, :])
+        Returns:
+            np.ndarray: Pj matrix
+        """
+        if self.omega is None:
+            raise ValueError("omega must be set, is currently None")
+        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
+            raise NotImplementedError(
+                "Propagation matrix is implemented only for structure with same wave number inside and outside."
+            )
 
-        if method == 'kde':
-            kde = sci.stats.gaussian_kde(D, bw_method=bw)
-            rho_E = (self.N / self.L)*kde.evaluate(D)
-
-            level_spacings = 1.0 / (rho_E * self.L)
-
-        elif method == 'w_knn':
-            level_spacings = np.full_like(D, np.nan, dtype=float)
-
-            # Vectorised search: for each E_i find indices of window [E_i-W/2, E_i+W/2]
-            for i, Ei in enumerate(D):
-                lo = np.searchsorted(D, Ei - W / 2, side='left')
-                lo = max(i-knn, lo)
-                hi = np.searchsorted(D, Ei + W / 2, side='right')
-                hi = min(i+knn, hi)
-
-                # Need at least two *gaps* → three levels
-                if hi - lo >= 3:
-                    # all gaps inside the window
-                    local_gaps = np.diff(D[lo:hi])
-                    level_spacings[i] = local_gaps.mean()
-
-        elif method == 'k-closest':
-            level_spacings = np.full_like(D, np.nan, dtype=float)
-
-            # Vectorised search: for each E_i find indices of k-closest levels
-            for i, Ei in enumerate(D):
-                # Find k closest neighbors (excluding self)
-                diffs = np.abs(D - Ei)
-                diffs[i] = np.inf  # exclude self
-                closest_indices = np.argsort(diffs)[:knn]
-                local_gaps = np.diff(np.sort(D[closest_indices]))
-                level_spacings[i] = local_gaps.mean()
-
-        thouless_ratios = energy_shifts / level_spacings
-        return (thouless_ratios, energy_shifts, level_spacings) if return_all else thouless_ratios
+        if j == self.N - 1:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[-1],
+                s=self.get_sN(),
+                k=self.k_in[-1],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        else:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[j],
+                s=self.s[j],
+                k=self.k_in[j],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        return p
 
 
 class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCommon):

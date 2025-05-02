@@ -133,7 +133,21 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         return self.get_material_matrix() @ self.get_capacitance_matrix()
 
     @override
-    def get_sorted_eigs_capacitance_matrix(
+    def get_periodized_system(self, sN=None):
+        """Get the periodized system of the disordered system by calculating s_N and converting the finite system into a periodic one.
+
+        Returns:
+            pwp: Periodized system
+        """
+        if sN is None:
+            raise ValueError(
+                "sN must be provided to convert the finite system into a periodic one"
+            )
+        pwp = convert_finite_into_periodic(self, sN)
+        return pwp
+
+    @override
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
@@ -234,7 +248,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
 
         return D
 
-    def get_greens_matrix(self, k):
+    def compute_greens_matrix(self, k):
         return np.linalg.inv(
             self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
         )
@@ -282,6 +296,29 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         )
         pm = p @ pm
         return pm
+
+    def compute_Lyapunov_exponent(self, subwavelength: bool = True) -> float:
+        """
+        Computes the Lyapunov exponent for the finite subwavelength wave problem.
+        The Lyapunov exponent is a measure of the exponential growth rate of the wave function.
+        It is computed using the propagation matrix.
+        Args:
+            subwavelength (bool, optional): Whether to use the subwavelength approximation. Defaults to True.
+        Raises:
+            ValueError: If omega is not set.
+            NotImplementedError: If the wave number inside and outside the structure are not the same.
+        Returns:
+            float: The Lyapunov exponent.
+        """
+        if self.omega is None:
+            raise ValueError("omega must be set, is currently None")
+        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
+            raise NotImplementedError(
+                "Propagation matrix is implemented only for structure with same wave number inside and outside."
+            )
+        P = self.compute_propagation_matrix(
+            space_from_end=self.get_sN(), subwavelength=subwavelength)
+        return np.log(np.linalg.norm(P, ord=2))/self.N
 
     def compute_reflection_and_transmission(self, subwavelength: bool = True) -> Tuple[float, float]:
         """
@@ -353,7 +390,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         return C
 
     @override
-    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
 
@@ -363,7 +400,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         return lambda alpha: self.get_material_matrix() @ self.get_capacitance_matrix()(alpha)
 
     @override
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvals_only=False,
         generalised=True,
@@ -397,10 +434,10 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                 if generalised:
                     if eigenvals_only:
                         D = np.linalg.eigvals(
-                            self.get_generalised_capacitance_matrix()(alpha))
+                            self.compute_generalised_capacitance_matrix()(alpha))
                     else:
                         D, S = np.linalg.eig(
-                            self.get_generalised_capacitance_matrix()(alpha))
+                            self.compute_generalised_capacitance_matrix()(alpha))
                 else:
                     if eigenvals_only:
                         D = np.linalg.eigvalsh(
@@ -482,6 +519,7 @@ def convert_finite_into_periodic(
     """
     if s_N <= 0:
         raise ValueError("s_N must be positive")
+    finite_problem = copy.deepcopy(finite_problem)
     return ClassicPeriodicSWP1D(
         N=finite_problem.N,
         l=finite_problem.l,

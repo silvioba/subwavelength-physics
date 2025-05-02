@@ -273,15 +273,13 @@ class FiniteSWP1D(SWP1D):
     def get_capacitance_matrix(self) -> np.ndarray:
         raise NotImplementedError
 
+    def get_periodized_system(self, sN=None):
+        raise NotImplementedError
+
     def get_generalised_capacitance_matrix(self) -> np.ndarray:
         raise NotImplementedError
 
-    def get_greens_matrix(self, k: int | float) -> np.ndarray:
-        return np.linalg.inv(
-            self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
-        )
-
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
@@ -295,6 +293,72 @@ class FiniteSWP1D(SWP1D):
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
         raise NotImplementedError
+
+    def compute_greens_matrix(self, k: int | float) -> np.ndarray:
+        return np.linalg.inv(
+            self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
+        )
+
+    def compute_Thouless_ratios(self, D=None, sN=None, method='kde', W=0.1, knn=10, bw=0.01, return_all=False):
+        """
+        Computes the Thouless ratios for the eigenvalues of the capacitance matrix.
+        Args:
+            D (np.ndarray, optional): Eigenvalues of the capacitance matrix. If None, they are computed.
+            sN (float, optional): Final spacing sN for periodisation.
+            method (str, optional): Method to compute the level spacings. Options are 'kde', 'w_knn', 'k-closest'. Defaults to 'kde'.
+            W (float, optional): Window size for the level spacing calculation. Defaults to 0.1.
+            knn (int, optional): Number of nearest neighbors for the 'w_knn' and 'k-closest' methods. Defaults to 10.
+            bw (float, optional): Bandwidth for the 'kde' method. Defaults to 0.01.
+            return_all (bool, optional): If True, returns the Thouless ratios, energy shifts, and level spacings. Defaults to False.
+        Returns:
+            np.ndarray: Thouless ratios for the eigenvalues of the capacitance matrix.
+        """
+        if D is None:
+            D, _ = self.compute_sorted_eigs_capacitance_matrix(
+                eigenvalues_only=True)
+        pwp = self.get_periodized_system(sN=sN)
+        alphas = [0, np.pi]
+
+        _, bands = pwp.get_band_data(alphas=alphas)
+
+        energy_shifts = np.abs(bands[1, :] - bands[0, :])
+
+        if method == 'kde':
+            kde = sci.stats.gaussian_kde(D, bw_method=bw)
+            rho_E = (self.N / self.L)*kde.evaluate(D)
+
+            level_spacings = 1.0 / (rho_E * self.L)
+
+        elif method == 'w_knn':
+            level_spacings = np.full_like(D, np.nan, dtype=float)
+
+            # Vectorised search: for each E_i find indices of window [E_i-W/2, E_i+W/2]
+            for i, Ei in enumerate(D):
+                lo = np.searchsorted(D, Ei - W / 2, side='left')
+                lo = max(i-knn, lo)
+                hi = np.searchsorted(D, Ei + W / 2, side='right')
+                hi = min(i+knn, hi)
+
+                # Need at least two *gaps* → three levels
+                if hi - lo >= 3:
+                    # all gaps inside the window
+                    local_gaps = np.diff(D[lo:hi])
+                    level_spacings[i] = local_gaps.mean()
+
+        elif method == 'k-closest':
+            level_spacings = np.full_like(D, np.nan, dtype=float)
+
+            # Vectorised search: for each E_i find indices of k-closest levels
+            for i, Ei in enumerate(D):
+                # Find k closest neighbors (excluding self)
+                diffs = np.abs(D - Ei)
+                diffs[i] = np.inf  # exclude self
+                closest_indices = np.argsort(diffs)[:knn]
+                local_gaps = np.diff(np.sort(D[closest_indices]))
+                level_spacings[i] = local_gaps.mean()
+
+        thouless_ratios = energy_shifts / level_spacings
+        return (thouless_ratios, energy_shifts, level_spacings) if return_all else thouless_ratios
 
     def plot_eigenvalues(
         self,
@@ -384,10 +448,10 @@ class PeriodicSWP1D(SWP1D):
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         raise NotImplementedError
 
-    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         raise NotImplementedError
 
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
@@ -421,7 +485,7 @@ class PeriodicSWP1D(SWP1D):
 
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
-            D = self.get_sorted_eigs_capacitance_matrix(
+            D = self.compute_sorted_eigs_capacitance_matrix(
                 eigenvals_only=True,
                 generalised=generalised)(alpha)
             bands[i, :] = D
