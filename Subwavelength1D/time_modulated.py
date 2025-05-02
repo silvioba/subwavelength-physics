@@ -189,7 +189,7 @@ class TimeModulatedFiniteSWP1D(FiniteSWP1D):
         return mat
 
     @override
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
             self,
             N_fourier: int = 4,
             generalised: bool = True,

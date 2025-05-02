@@ -54,9 +54,9 @@ class HermitianEigAccelerationTests(unittest.TestCase):
         cp = ClassicFiniteSWP1D(
             N=len(ls), l=ls, s=ss, v_in=v_in, v_out=1)
 
-        D1, S1 = cp.get_sorted_eigs_capacitance_matrix(
+        D1, S1 = cp.compute_sorted_eigs_capacitance_matrix(
             hermitian_acceleration=False, generalised=generalized)
-        D2, S2 = cp.get_sorted_eigs_capacitance_matrix(
+        D2, S2 = cp.compute_sorted_eigs_capacitance_matrix(
             hermitian_acceleration=True, generalised=generalized)
 
         S1 = unique_eigenvector_phases(S1)
@@ -86,9 +86,9 @@ class HermitianEigAccelerationTests(unittest.TestCase):
         cp = ClassicPeriodicSWP1D(
             N=len(ls), l=ls, s=ss, v_in=v_in, v_out=1)
 
-        D1, S1 = cp.get_sorted_eigs_capacitance_matrix(
+        D1, S1 = cp.compute_sorted_eigs_capacitance_matrix(
             hermitian_acceleration=False, generalised=generalized)(alpha)
-        D2, S2 = cp.get_sorted_eigs_capacitance_matrix(
+        D2, S2 = cp.compute_sorted_eigs_capacitance_matrix(
             hermitian_acceleration=True, generalised=generalized)(alpha)
         S1 = unique_eigenvector_phases(S1)
         S2 = unique_eigenvector_phases(S2)

@@ -45,8 +45,8 @@ class NonReciprocalTests(unittest.TestCase):
             N=len(ls), gammas=1e-4, l=ls, s=ss, v_in=1, v_out=1)
         if general:
             np.testing.assert_allclose(
-                cp.get_generalised_capacitance_matrix()(alpha),
-                nrp.get_generalised_capacitance_matrix()(alpha),
+                cp.compute_generalised_capacitance_matrix()(alpha),
+                nrp.compute_generalised_capacitance_matrix()(alpha),
                 atol=1e-4
             )
         else:
