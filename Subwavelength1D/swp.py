@@ -485,7 +485,7 @@ class PeriodicSWP1D(SWP1D):
 
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
-            D = self.compute_sorted_eigs_capacitance_matrix(
+            D, _ = self.compute_sorted_eigs_capacitance_matrix(
                 eigenvals_only=True,
                 generalised=generalised)(alpha)
             bands[i, :] = D

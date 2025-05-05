@@ -421,12 +421,14 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                     C = self.get_capacitance_matrix()(alpha)
                     if eigenvals_only:
                         D = sci.linalg.eigvalsh(C, b=V)
+                        S = None
                     else:
                         D, S = sci.linalg.eigh(C, b=V)
                 else:
                     if eigenvals_only:
                         D = sci.linalg.eigvalsh(
                             self.get_capacitance_matrix()(alpha))
+                        S = None
                     else:
                         D, S = sci.linalg.eigh(
                             self.get_capacitance_matrix()(alpha))
@@ -435,6 +437,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                     if eigenvals_only:
                         D = np.linalg.eigvals(
                             self.compute_generalised_capacitance_matrix()(alpha))
+                        S = None
                     else:
                         D, S = np.linalg.eig(
                             self.compute_generalised_capacitance_matrix()(alpha))
@@ -442,16 +445,13 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                     if eigenvals_only:
                         D = np.linalg.eigvalsh(
                             self.get_capacitance_matrix()(alpha))
+                        S = None
                     else:
                         D, S = np.linalg.eigh(
                             self.get_capacitance_matrix()(alpha))
 
-            if not eigenvals_only and (not sorting == "eva_real" or (not hermitian_acceleration and generalised)):
-                D, S = utils.sort_by_method(D, S, sorting)
-            if eigenvals_only:
-                return D
-            else:
-                return D, S
+            D, S = utils.sort_by_method(D, S, sorting)
+            return D, S
         return eig
 
     def plot_band_functions(
