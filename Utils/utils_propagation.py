@@ -65,7 +65,7 @@ def propagation_matrix_single(
 
 
 def propagation_matrix_block(
-    block: Tuple[List[int | float]],
+    block: Tuple[Tuple[int | float]],
     k: int | float,
     delta: int | float = 1e-3,
     subwavelength: bool = True,

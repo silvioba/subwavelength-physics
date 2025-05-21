@@ -255,10 +255,10 @@ class FiniteSWP1D(SWP1D):
 
         assert (
             len(l) == N
-        ), f"The len of the l array (currently {len(self.l)}) must be equal to N={N}"
+        ), f"The len of the l array (currently {len(l)}) must be equal to N={N}"
         assert (
             len(s) == N - 1
-        ), f"The len of s array (currently {len(self.s)}) must be equal to N-1={N-1}"
+        ), f"The len of s array (currently {len(s)}) must be equal to N-1={N-1}"
         if v_in is not None:
             assert len(v_in) == N, "The l of v_in array must be equal to N"
 
@@ -486,7 +486,7 @@ class PeriodicSWP1D(SWP1D):
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
             D, _ = self.compute_sorted_eigs_capacitance_matrix(
-                eigenvals_only=True,
+                eigenvalues_only=True,
                 generalised=generalised)(alpha)
             bands[i, :] = D
 

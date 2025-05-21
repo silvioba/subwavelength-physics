@@ -253,6 +253,43 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
             self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
         )
 
+    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, subwavelength: bool = True):
+        """
+        Computes the propagation matrix for a single resonator.
+
+        Args:
+            j (int): The index of the resonator.
+            space_from_end (float, optional): The spacing from the last resonator to the end of the domain. Defaults to 1.0.
+            subwavelength (bool, optional): Whether to use the subwavelength approximation. Defaults to True.
+
+        Returns:
+            np.ndarray: The propagation matrix for the j-th resonator.
+        """
+        if self.omega is None:
+            raise ValueError("omega must be set, is currently None")
+        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
+            raise NotImplementedError(
+                "Propagation matrix is implemented only for structure with same wave number inside and outside."
+            )
+
+        if j == self.N - 1:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[-1],
+                s=space_from_end,
+                k=self.k_in[-1],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        else:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[j],
+                s=self.s[j],
+                k=self.k_in[j],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        return p
+
     def compute_propagation_matrix(
         self, space_from_end: float = 1.0, subwavelength: bool = True
     ) -> np.ndarray:
@@ -270,34 +307,15 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray: The propagation matrix.
         """
-        if self.omega is None:
-            raise ValueError("omega must be set, is currently None")
-        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
-            raise NotImplementedError(
-                "Propagation matrix is implemented only for structure with same wave number inside and outside."
-            )
 
         pm = np.eye(2)
-        for i in range(self.N - 1):
-            p = utils_propagation.propagation_matrix_single(
-                l=self.l[i],
-                s=self.s[i],
-                k=self.k_in[i],
-                delta=self.delta,
-                subwavelength=subwavelength,
-            )
+        for j in range(self.N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, subwavelength=subwavelength)
             pm = p @ pm
-        p = utils_propagation.propagation_matrix_single(
-            l=self.l[-1],
-            s=space_from_end,
-            k=self.k_in[-1],
-            delta=self.delta,
-            subwavelength=subwavelength,
-        )
-        pm = p @ pm
         return pm
 
-    def compute_Lyapunov_exponent(self, subwavelength: bool = True) -> float:
+    def compute_Lyapunov_exponent(self, space_from_end=1, subwavelength: bool = True, rescale_every=20) -> float:
         """
         Computes the Lyapunov exponent for the finite subwavelength wave problem.
         The Lyapunov exponent is a measure of the exponential growth rate of the wave function.
@@ -310,19 +328,23 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Returns:
             float: The Lyapunov exponent.
         """
-        if self.omega is None:
-            raise ValueError("omega must be set, is currently None")
-        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
-            raise NotImplementedError(
-                "Propagation matrix is implemented only for structure with same wave number inside and outside."
-            )
-        P = self.compute_propagation_matrix(
-            space_from_end=self.get_sN(), subwavelength=subwavelength)
-        return np.log(np.linalg.norm(P, ord=2))/self.N
+        pm = np.eye(2, dtype=float)
+        log_norm_sum = 0.0
+        for j in range(self.N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, subwavelength=subwavelength)
+            pm = p @ pm
+            if rescale_every is not None and ((j+1) % rescale_every == 0):
+                norm = np.linalg.norm(pm)
+                log_norm_sum += np.log(norm)
+                pm /= norm
+
+        log_norm_sum += np.log(np.linalg.norm(pm))
+        return log_norm_sum/self.N
 
     def compute_reflection_and_transmission(self, subwavelength: bool = True) -> Tuple[float, float]:
         """
-        Computes the transmission and reflection coefficients for the finite subwavelength wave problem. 
+        Computes the transmission and reflection coefficients for the finite subwavelength wave problem.
         We do this by using the Q matrix to go to the A B basis and then applying the boundary conditions u_in,L = 1, u_in,R = 0.
 
         Args:

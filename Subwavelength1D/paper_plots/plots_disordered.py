@@ -19,6 +19,7 @@ import Subwavelength1D.disordered as disordered
 from typing import Literal, Callable, Tuple, Self, List, override
 
 import copy
+from tqdm import tqdm
 
 plt.rcParams.update(settings.matplotlib_params)
 
@@ -105,6 +106,74 @@ def plot_variance_band_functions(
         else:
             ax.plot(means, variances, "k.")
     return ax
+
+
+def plot_Thouless_ratio_background(
+    dwp: disordered.DisorderedClassicFiniteSWP1D,
+    vlims: Tuple[float, float] = (0, 1),
+    bw=0.01,
+    fig: Figure | None = None,
+    ax: Axes | None = None,
+    cmap=None,
+    norm=None,
+    draw_colorbar: bool = False,
+):
+    """
+    Plots the Thouless ratios.
+
+    Args:
+        ax (Axes | None, optional): Matplotlib Axes object to plot on. Defaults to None.
+        semilogy (bool, optional): Whether to use a logarithmic scale for the y-axis. Defaults to False.
+        generalised (bool, optional): Whether to use the generalised capacitance matrix. Defaults to False.
+        only_background (bool, optional): Whether to plot only the background. Defaults to False.
+
+    Returns:
+        Axes: Matplotlib Axes object with the plot.
+    """
+    D, _ = dwp.compute_sorted_eigs_capacitance_matrix(eigenvalues_only=True)
+    thouless_ratios = dwp.compute_Thouless_ratios(D=D, bw=bw)
+
+    ratio_lowest = thouless_ratios[0]
+
+    mask_big_jump = np.diff(D) > 0.5
+    idxs = np.arange(len(mask_big_jump))[mask_big_jump]
+    idxs += 1
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    idxs = np.insert(idxs, 0, 0)
+    idxs = np.append(idxs, -1)
+
+    for i in range(len(idxs) - 1):
+        means_sel = D[idxs[i]: idxs[i + 1]]
+        if len(means_sel) == 0:
+            continue
+        X, Y = np.meshgrid(
+            means_sel,
+            np.array(vlims),
+        )
+        Z = np.ones_like(Y, dtype=float)
+        for j in range(Z.shape[0]):
+            Z[j, :] = thouless_ratios[idxs[i]: idxs[i + 1]]
+
+        if cmap is None or norm is None:
+            cmap, norm = custom_colormap_with_lognorm(
+                ratio_lowest,
+                vmin=np.min(thouless_ratios),
+                vmax=np.max(thouless_ratios),
+            )
+        pcm = ax.pcolormesh(
+            X,
+            Y,
+            Z,
+            norm=norm,
+            cmap=cmap,
+            shading="nearest",
+        )
+    if draw_colorbar:
+        cbar = fig.colorbar(pcm, ax=ax, )
+        cbar.set_label(r"Thouless ratio")
 
 
 def custom_colormap_with_lognorm(a, vmin, vmax, map_type="classic"):
@@ -212,7 +281,7 @@ def plot_band_function_variance_as_color(
         )
 
     for i in range(bands.shape[1]):  # Loop through each line
-        ax.plot(alphas, bands[:, i], color=cmap(norm(vars[i])))
+        ax.plot(alphas, np.abs(bands[:, i]), color=cmap(norm(vars[i])))
 
     if not yticks:
         ax.set_yticks([])
@@ -259,7 +328,7 @@ def plot_band_function_Thouless_ratio_as_color(
     if ax is None:
         fig, ax = plt.subplots(figsize=settings.figure_size)
 
-    thouless_ratios = dp.get_Thouless_ratios()
+    thouless_ratios = dp.compute_Thouless_ratios()
     if cmap is None or norm is None:
         cmap, norm = custom_colormap_with_lognorm(
             1e-1,
@@ -308,7 +377,7 @@ def plot_variance_vs_localisation(
     Returns:
         Tuple[Figure, Axes]: scatter plot of the variance versus localisation with semilogx axes
     """
-    D, S = fwp.get_sorted_eigs_capacitance_matrix(generalised=generalised)
+    D, S = fwp.compute_sorted_eigs_capacitance_matrix(generalised=generalised)
     pwp = classic.convert_finite_into_periodic(finite_problem=fwp, s_N=s_N)
     alphas, bands = pwp.get_band_data(generalised, nalpha)
     vars = np.var(bands, axis=0)
@@ -338,8 +407,8 @@ def plot_Thouless_ratio_vs_localisation(
     Returns:
         Tuple[Figure, Axes]: scatter plot of the variance versus localisation with semilogx axes
     """
-    D, S = dp.get_sorted_eigs_capacitance_matrix()
-    thouless_ratios = dp.get_Thouless_ratios(D=D, bw=bw)
+    D, S = dp.compute_sorted_eigs_capacitance_matrix()
+    thouless_ratios = dp.compute_Thouless_ratios(D=D, bw=bw)
 
     if lower_band_only:
         ax.semilogx(thouless_ratios[D < 1.5], np.linalg.norm(
@@ -361,8 +430,8 @@ def scatter_eigenval_Thouless_ratio_vs_localisation(
     s=8,
     bw=0.01,
 ) -> None:
-    D, S = dp.get_sorted_eigs_capacitance_matrix()
-    thouless_ratios = dp.get_Thouless_ratios(D=D, bw=bw)
+    D, S = dp.compute_sorted_eigs_capacitance_matrix()
+    thouless_ratios = dp.compute_Thouless_ratios(D=D, bw=bw)
 
     if lower_band_only:
         S = S[:, D < 1.5]
@@ -378,6 +447,48 @@ def scatter_eigenval_Thouless_ratio_vs_localisation(
         )
 
     ax.scatter(D, np.linalg.norm(S, ord=4, axis=0),
+               c=thouless_ratios, cmap=cmap, norm=norm, s=s)
+
+    if draw_colorbar:
+        cbar = fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
+        cbar.set_label(r"Thouless ratio")
+
+
+def scatter_eigenval_Thouless_ratio_vs_Lyapunov(
+    dp: disordered.DisorderedClassicFiniteSWP1D,
+    fig: Figure,
+    ax: Axes,
+    cmap=None,
+    norm=None,
+    lower_band_only=True,
+    draw_colorbar=True,
+    s=8,
+    bw=0.01,
+) -> None:
+    D, S = dp.compute_sorted_eigs_capacitance_matrix()
+    thouless_ratios = dp.compute_Thouless_ratios(D=D, bw=bw)
+
+    if lower_band_only:
+        S = S[:, D < 1.5]
+        thouless_ratios = thouless_ratios[D < 1.5]
+        D = D[D < 1.5]
+
+    if cmap is None or norm is None:
+        cmap, norm = custom_colormap_with_lognorm(
+            1e-1,
+            vmin=1e-7,
+            vmax=1,
+            map_type="classic",
+        )
+
+    @np.vectorize
+    def get_Lyapunov_exponent(d):
+        dp.set_omega(d)
+        return dp.compute_Lyapunov_exponent()
+
+    lyapunov_exponents = get_Lyapunov_exponent(D)
+
+    ax.scatter(D, lyapunov_exponents,
                c=thouless_ratios, cmap=cmap, norm=norm, s=s)
 
     if draw_colorbar:
@@ -459,14 +570,16 @@ def plot_double_defect(
             v_in[j] = v_in[j] + eps
         dwp.v_in = v_in
 
-        D, S = dwp.get_sorted_eigs_capacitance_matrix(generalised=generalised)
+        D, S = dwp.compute_sorted_eigs_capacitance_matrix(
+            generalised=generalised)
         Ds_bottom[i, :] = D[-1], D[-2]
 
-    fig, ax = plt.subplots(figsize=settings.figure_sizeh)
+    fig, ax = plt.subplots(figsize=settings.figure_halfsize)
 
     _ = ax.plot(epss, Ds_bottom[:, 0], "b", label=r"$\lambda_{N}$")
     _ = ax.plot(epss, Ds_bottom[:, 1], "r", label=r"$\lambda_{N-1}$")
     _ = ax.set_xlabel(r"Perturbation strength $\eta$")
+    ax.set_ylabel(r"Upper defect frequencies")
     _ = ax.legend()
     return fig, ax
 
@@ -616,6 +729,71 @@ def plot_variance_density_histogram(
         cbar = plt.colorbar(mp, ax=ax)
 
 
+def plot_Thouless_density_histogram(
+    dp: disordered.DisorderedClassicFiniteSWP1D,
+    p: float = 0.0,
+    p_sampling="uniform",
+    perturb_param="material",
+    n_realizations=1,
+    bins=None,
+    sqrt_eva=False,
+    ax=None,
+    cmap=None,
+    norm=None,
+    draw_colorbar=False,
+):
+    if not bins:
+        bins = dp.N // 2
+
+    evas = np.zeros((n_realizations * dp.N))
+    thouless_ratios = np.zeros((n_realizations * dp.N))
+    for i in range(n_realizations):
+        dp_perturbed = dp.get_pertubed_copy(
+            p, perturb_param=perturb_param, p_sampling=p_sampling
+        )
+        D, _ = dp_perturbed.compute_sorted_eigs_capacitance_matrix()
+        evas[i * dp.N: (i + 1) * dp.N] = D
+        thouless_ratios[i * dp.N: (i + 1) *
+                        dp.N] = dp_perturbed.compute_Thouless_ratios(D=D)
+
+    if sqrt_eva:
+        evas = np.sqrt(evas)
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    mean_hist, bin_edges = np.histogram(
+        evas, bins=bins, range=(0, np.max(evas) + 1e-3)
+    )
+    digitized = np.digitize(evas, bin_edges)
+
+    average_variance_over_bin = np.zeros_like(mean_hist, dtype=float)
+    for i in range(dp.N * n_realizations):
+        average_variance_over_bin[digitized[i] - 1] += thouless_ratios[i]
+
+    average_variance_over_bin /= mean_hist
+
+    if cmap is None or norm is None:
+        cmap, norm = custom_colormap_with_lognorm(
+            thouless_ratios[0],
+            vmin=np.min(thouless_ratios),
+            vmax=np.max(thouless_ratios),
+        )
+
+    pcm = ax.bar(
+        bin_edges[:-1],
+        mean_hist / (n_realizations * dp.N),
+        width=bin_edges[1] - bin_edges[0],
+        color=cmap(norm(average_variance_over_bin)),
+        edgecolor="black",
+        linewidth=0.3,
+    )
+
+    if draw_colorbar:
+        mp = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+        cbar = plt.colorbar(mp, ax=ax)
+
+
 def plot_variance_perturbation_heatmap(
     dp: disordered.DisorderedClassicFiniteSWP1D,
     nalpha=10,
@@ -690,8 +868,8 @@ def plot_variance_perturbation_heatmap(
         shading="gouraud",
         edgecolors=None,
     )
-    ax.set_xlabel("Eigenvalue $\\lambda$")
-    ax.set_ylabel("Perturbation strength $\\sigma$")
+    # ax.set_xlabel("Eigenvalue $\\lambda$")
+    # ax.set_ylabel("Perturbation strength $\\sigma$")
 
     if kwargs.get("colorbar"):
         cmap2, norm = custom_colormap_with_lognorm(
@@ -699,6 +877,90 @@ def plot_variance_perturbation_heatmap(
             vmin=np.min(variances),
             vmax=np.max(variances),
             include_white=True,
+        )
+        mp = plt.cm.ScalarMappable(norm=norm, cmap=cmap2)
+        cbar = plt.colorbar(mp, ax=ax)
+
+
+def plot_Thouless_perturbation_heatmap(
+    dp: disordered.DisorderedClassicFiniteSWP1D,
+    p_max=0.5,
+    n_ps=10,
+    p_sampling="uniform",
+    perturb_param="material",
+    n_realizations=10,
+    gap_threshold=1,
+    gap_maxp=0.5,
+    gap_bound=10,
+    ax=None,
+    cmap=None,
+    norm=None,
+    draw_colorbar=False,
+):
+    evas_total = np.zeros((n_ps, dp.N))
+    thouless_ratios_total = np.zeros((n_ps, dp.N))
+
+    def get_perturbed(p):
+        evas = np.zeros((n_realizations, dp.N))
+        thouless_ratios = np.zeros((n_realizations, dp.N))
+        for i in range(n_realizations):
+            dp_perturbed = dp.get_pertubed_copy(
+                p, perturb_param=perturb_param, p_sampling=p_sampling
+            )
+            D, _ = dp_perturbed.compute_sorted_eigs_capacitance_matrix()
+            evas[i] = D
+            thouless_ratios[i] = dp_perturbed.compute_Thouless_ratios(D=D)
+        return np.mean(evas, axis=0), np.mean(thouless_ratios, axis=0)
+
+    ps = np.linspace(0, p_max, n_ps)
+    for i, p in enumerate(ps):
+        evas_total[i], thouless_ratios_total[i] = get_perturbed(p)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=settings.figure_size)
+
+    X = evas_total
+    Y = np.repeat(ps[:, np.newaxis], dp.N, axis=1)
+    Z = thouless_ratios_total
+
+    if cmap is None or norm is None:
+        cmap, norm = custom_colormap_with_lognorm(
+            thouless_ratios_total[0, 0],
+            vmin=np.min(thouless_ratios_total) / 10**2,
+            vmax=np.max(thouless_ratios_total),
+            map_type="include_white",
+        )
+
+    gap_indices = np.logical_and(
+        np.logical_and(
+            np.logical_or(
+                np.append(
+                    np.abs(X[:, 1:] - X[:, :-1]) > gap_threshold, [[False]] * n_ps, axis=1
+                ),
+                np.append(
+                    [[False]] * n_ps, np.abs(X[:, 1:] - X[:, :-1]) > gap_threshold, axis=1
+                ),
+            ),
+            X < gap_bound,
+        ),
+        Y < gap_maxp)
+    Z[gap_indices] = np.nan
+
+    pcm = ax.pcolormesh(
+        X,
+        Y,
+        Z,
+        norm=norm,
+        cmap=cmap,
+        shading="gouraud",
+        edgecolors=None,
+    )
+
+    if draw_colorbar:
+        cmap2, norm = custom_colormap_with_lognorm(
+            thouless_ratios_total[0, 0],
+            vmin=np.min(thouless_ratios_total) / 10**2,
+            vmax=np.max(thouless_ratios_total),
         )
         mp = plt.cm.ScalarMappable(norm=norm, cmap=cmap2)
         cbar = plt.colorbar(mp, ax=ax)
@@ -767,7 +1029,7 @@ def plot_block_characteristics(block, k_min=1e-1, k_max=5, n_pts=1000, ylim=None
 def visualize_spectrum(sp: swp.FiniteSWP1D, j, semilogy=False, axes=None):
     if not axes:
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-    D, S = sp.get_sorted_eigs_capacitance_matrix()
+    D, S = sp.compute_sorted_eigs_capacitance_matrix()
     axes[0].plot(D, 'k.')
     axes[0].plot(j, D[j], 'ro')
     if semilogy:
@@ -778,3 +1040,144 @@ def visualize_spectrum(sp: swp.FiniteSWP1D, j, semilogy=False, axes=None):
         axes[1].plot(sv, 'k-')
     if semilogy:
         axes[1].set_yscale('log')
+
+
+def get_block_Lyapunov(block, lbda):
+    mat = utils_propagation.propagation_matrix_block_function(
+        block, subwavelength=True)(lbda)
+    D, S = sort_by_eva_abs(*np.linalg.eig(mat))
+    return np.log(np.abs(D[1]))
+
+
+def estimate_weighted_Lyapunov(lbda, blocks, weights):
+    block_Lyapunovs = [get_block_Lyapunov(blocks[j], lbda)
+                       for j in range(len(blocks))]
+    # Calculate the expected value of N/M equal to the expected number of resonators per block
+    resonators_per_block = np.sum(
+        [weights[j]*len(blocks[j][0]) for j in range(len(blocks))])
+
+    # Calculate the expected value of the Lyapunov exponent of the entire system
+    total_exp = np.sum([block_Lyapunovs[j]*weights[j]
+                        for j in range(len(blocks))])
+    return total_exp
+
+
+def visualize_total_Lyapunov_vs_estimate(
+    dp: disordered.DisorderedClassicFiniteSWP1D,
+    blocks,
+    weights,
+    xlim=(0, 4),
+    n_points=100,
+    rescale_every=20,
+    fig=None,
+    ax=None,
+):
+    if fig is None or ax is None:
+        fig, ax = plt.subplots(figsize=settings.figure_size)
+
+    ll = np.linspace(xlim[0], xlim[1], n_points)
+    Lyapunov_total = []
+    Lyapunov_total_estimated = []
+    for l in tqdm(ll):
+        dp.set_omega(l)
+        Lyapunov_total.append(dp.compute_Lyapunov_exponent(
+            space_from_end=dp.get_sN(),
+            rescale_every=rescale_every))
+        Lyapunov_total_estimated.append(
+            len(dp.idxs) / dp.N * estimate_weighted_Lyapunov(l, blocks, weights))
+
+    ax.plot(ll, Lyapunov_total, 'k-', label='Actual')
+    ax.plot(ll, Lyapunov_total_estimated, 'r--',
+            label='Estimate')
+    ax.set_xlabel(r'Frequency $\lambda$')
+    ax.set_ylabel(r'Lyapunov exponent $\gamma(\lambda)$')
+    ax.legend()
+
+
+def visualize_defect_mode_with_blockcolors(dp: disordered.DisorderedClassicFiniteSWP1D, blocks, weights, defect_site, gaps, axes=None):
+    if axes is None:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    D, S = dp.compute_sorted_eigs_capacitance_matrix()
+
+    defect_indicies = []
+    for j, d in enumerate(D):
+        for gap in gaps:
+            if gap[0] < d < gap[1]:
+                defect_indicies.append(j)
+                break
+
+    marker_list = ['v', '^']
+    axes[0].plot(D, 'k.')
+
+    color_list = ["red", "deepskyblue", "green"]
+    cc = [
+        color_list[dp.idxs[dp.get_block_index_at_resonator(jj)]] for jj in range(dp.N)
+    ]
+    for i, di in enumerate(defect_indicies):
+        axes[0].plot(di, D[di], color='magenta', marker=marker_list[i])
+        axes[1].plot(np.abs(S[:, di]), 'k-')
+        axes[1].scatter(np.arange(dp.N), np.abs(S[:, di]), c=cc,
+                        s=15, zorder=2, marker=marker_list[i])
+
+        estimated_lyapunov = estimate_weighted_Lyapunov(
+            D[di], blocks, weights, 1)
+        decay_pred = [np.exp(estimated_lyapunov*(-np.abs(k-defect_site)))
+                      for k in np.arange(dp.N)]
+        axes[1].plot(np.abs(decay_pred), 'k--', linewidth=3.0)
+
+    axes[1].set_yscale('log')
+
+
+def plot_repulsion(dp: disordered.DisorderedClassicFiniteSWP1D, p_max=0.99, n_ps=30, n_realizations=20, ax=None):
+    dp_perturbed = copy.deepcopy(dp)
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    ps = np.linspace(0, p_max, n_ps)
+    avg_dists = np.zeros((n_ps, n_realizations))
+    for i, p in enumerate(ps):
+        for r in range(n_realizations):
+            perturbation = 1+np.random.uniform(-p, p, dp.N)
+            dp_perturbed.v_in = perturbation
+            capmat = dp_perturbed.get_generalised_capacitance_matrix()
+            D, S = sort_by_eva_real(*np.linalg.eig(capmat))
+            D = np.real(D)
+            avg_dists[i, r] = np.mean(np.abs(D[1:] - D[:-1]))
+    ax.plot(ps, np.mean(avg_dists, axis=1), 'kx-')
+
+
+def plot_localization(dp: disordered.DisorderedClassicFiniteSWP1D, p_max=0.99, n_ps=30, n_realizations=20, nalpha=10, ax=None):
+    dp_perturbed = copy.deepcopy(dp)
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+
+    ratios_total = np.zeros((n_ps, dp.N))
+    eve_localizations_total = np.zeros((n_ps, dp.N))
+
+    def get_average_perturbed_quantities(p):
+        thouless_ratios = np.zeros((n_realizations, dp.N))
+        eve_localizations = np.zeros((n_realizations, dp.N))
+        for i in range(n_realizations):
+            dp_perturbed = dp.get_pertubed_copy(
+                p, perturb_param="spacing", p_sampling="uniform")
+            D, S = dp_perturbed.compute_sorted_eigs_capacitance_matrix()
+            eve_localizations[i, :] = np.linalg.norm(S, ord=4, axis=0)
+            thouless_ratios[i, :] = dp_perturbed.compute_Thouless_ratios(D=D)
+        return np.mean(thouless_ratios, axis=0), np.mean(eve_localizations, axis=0)
+
+    ps = np.linspace(0, p_max, n_ps)
+    for i, p in enumerate(ps):
+        ratios_total[i], eve_localizations_total[i] = get_average_perturbed_quantities(
+            p)
+
+    ratios = np.mean(ratios_total, axis=1)
+    localizations = np.mean(eve_localizations_total, axis=1)
+
+    ax2 = ax.twinx()
+    l1 = ax.plot(ps, localizations, 'ko-')
+    ax.set_ylabel('Mean eigenmode localisation (IPR)')
+    l2 = ax2.plot(ps, ratios, 'kx-')
+    ax2.set_ylabel('Mean Thouless ratio')
+    ax.legend(l1 + l2, ('Localisation', 'Thouless ratio'),
+              loc='center right', frameon=False)

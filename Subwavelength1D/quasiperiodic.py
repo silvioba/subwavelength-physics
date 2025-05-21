@@ -151,17 +151,17 @@ def construct_fibonacci_sequence(n_iterates: int):
     Starting with [1] and applying the rules n_iterates times.
     """
     replacement_dict = {
-        0: [0, 1],
-        1: [0],
+        0: [1],
+        1: [1, 0],
     }
-    tiling = [1]
+    tiling = [0]
     for i in range(n_iterates):
         tiling = list(itertools.chain.from_iterable(
             [replacement_dict[x] for x in tiling]))
     return tiling
 
 
-def construct_hyperuniform_binary_sequence(n_chunks: int):
+def construct_hyperuniform_binary_sequence(n_chunks: int, seed=42):
     """
     Generate a hyperuniform binary sequence with controlled disorder.
 
@@ -180,6 +180,7 @@ def construct_hyperuniform_binary_sequence(n_chunks: int):
     Creates a sequence where each chunk contains one 0 and one 1,
     ensuring that density fluctuations are minimized.
     """
+    np.random.seed(seed)
     ss = []
     for i in range(n_chunks):
         s = np.random.choice(2)
@@ -189,7 +190,7 @@ def construct_hyperuniform_binary_sequence(n_chunks: int):
     return ss
 
 
-def construct_bound_length_sequence(n_symbols: int, weights: List[float], bounds: List[int], n_reps: int,):
+def construct_bound_length_sequence(n_symbols: int, weights: List[float], bounds: List[int], n_reps: int, seed=42):
     """
     Generate a sequence with bounds on consecutive repetitions of the same symbol.
 
@@ -214,6 +215,7 @@ def construct_bound_length_sequence(n_symbols: int, weights: List[float], bounds
     When a symbol reaches its bound for consecutive repetitions,
     it's temporarily removed from the selection pool.
     """
+    np.random.seed(seed)
     ss = np.zeros(n_reps, dtype=int)
     for i in range(n_reps):
         # Check if reached the repetition bound
@@ -231,7 +233,7 @@ def construct_bound_length_sequence(n_symbols: int, weights: List[float], bounds
     return ss
 
 
-def construct_softmax_uniformed_sequence(n_symbols: int, n_reps: int, beta: float = 1):
+def construct_softmax_uniformed_sequence(n_symbols: int, n_reps: int, beta: float = 1, seed=42):
     """
     Generate a sequence with dynamically adjusted probabilities to maintain uniform distribution.
 
@@ -259,6 +261,7 @@ def construct_softmax_uniformed_sequence(n_symbols: int, n_reps: int, beta: floa
         exps = np.exp(beta*counts)
         return exps / np.sum(exps)
 
+    np.random.seed(seed)
     ss = np.zeros(n_reps, dtype=int)
     for i in range(n_reps):
         expected_count = i/n_symbols
