@@ -55,20 +55,8 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
                 )
         check_parameters_inconsitencies(self)
 
-    @override
-    def get_capacitance_matrix(self) -> np.ndarray:
-        """
-        Computes the gauge capacitance matrix C from eq (20) in [1]. Note that the paper contains wrong indicies. This implementation is corrected.
-
-        Returns:
-            np.ndarray:
-        """
+    def __get_capacitance_diagonal(self) -> np.ndarray:
         assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
-        upper_diag = - self.gammas[:-1] * self.l[:-1] / (
-            self.s * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
-        lower_diag = self.gammas[1:] * self.l[1:] / (
-            self.s * (1-np.exp(self.gammas[1:]*self.l[1:])))
-
         first_coef = self.gammas[0] * self.l[0] / (
             self.s[0] * (1-np.exp(-self.gammas[0]*self.l[0])))
         last_coef = - self.gammas[-1] * self.l[-1] / (
@@ -78,6 +66,49 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             1/(self.s[1:]*(1-np.exp(-self.gammas[1:-1] * self.l[1:-1]))) - 1/(self.s[:-1]*(1-np.exp(self.gammas[1:-1]*self.l[1:-1]))))
 
         center_diag = np.concatenate([[first_coef], center_diag, [last_coef]])
+
+        # Handle the case where gammas are very small to avoid 0/0
+        low_gammas = np.nonzero(np.abs(self.gammas) < 1e-14)[0]
+        for i in low_gammas:
+            if i == 0:
+                center_diag[0] = 1 / self.s[0]
+            elif i == self.N - 1:
+                center_diag[-1] = 1 / self.s[-1]
+            else:
+                center_diag[i] = 1 / self.s[i-1] + 1 / self.s[i]
+        return center_diag
+
+    def __get_capacitance_upper_offdiagonal(self) -> np.ndarray:
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
+        upper_diag = - self.gammas[:-1] * self.l[:-1] / (
+            self.s * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
+        # Handle the case where gammas are very small to avoid 0/0
+        low_gammas = np.nonzero(np.abs(self.gammas[:-1]) < 1e-14)[0]
+        for i in low_gammas:
+            upper_diag[i] = - 1 / self.s[i]
+        return upper_diag
+
+    def __get_capacitance_lower_offdiagonal(self) -> np.ndarray:
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
+        lower_diag = self.gammas[1:] * self.l[1:] / (
+            self.s * (1-np.exp(self.gammas[1:]*self.l[1:])))
+        # Handle the case where gammas are very small to avoid 0/0
+        low_gammas = np.nonzero(np.abs(self.gammas[1:]) < 1e-14)[0]
+        for i in low_gammas:
+            lower_diag[i] = - 1 / self.s[i]
+        return lower_diag
+
+    @override
+    def get_capacitance_matrix(self) -> np.ndarray:
+        """
+        Computes the gauge capacitance matrix C from eq (20) in [1]. Note that the paper contains wrong indicies. This implementation is corrected.
+
+        Returns:
+            np.ndarray:
+        """
+        center_diag = self.__get_capacitance_diagonal()
+        upper_diag = self.__get_capacitance_upper_offdiagonal()
+        lower_diag = self.__get_capacitance_lower_offdiagonal()
 
         C = np.diag(center_diag) + np.diag(upper_diag, 1) + \
             np.diag(lower_diag, -1)
@@ -93,11 +124,35 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         """
         return self.get_material_matrix() @ self.get_capacitance_matrix()
 
+    def get_symmetrised_generalised_capacitance_matrix(self) -> np.ndarray:
+        """
+        Computes the gauge capacitance matrix C premultiplied by V^2 L^{-1} where V is the diagonal matrix of wavespeeds inside the resonators and L the matrix of lengths of the resonators
+
+        Returns:
+            np.ndarray:
+        """
+        V = self.get_material_matrix(return_only_list=True)
+        center_diag = self.__get_capacitance_diagonal()
+        upper_diag = self.__get_capacitance_upper_offdiagonal()
+        lower_diag = self.__get_capacitance_lower_offdiagonal()
+
+        a = V*center_diag
+        b = V[:-1]*upper_diag
+        c = V[1:]*lower_diag
+
+        d = np.sign(b)*np.sqrt(b*c)
+
+        C = np.diag(a) + np.diag(d, 1) + \
+            np.diag(d, -1)
+
+        return C
+
     @override
     def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
+        real_symmetrisation_acceleratrion=True,
         sorting: Literal[
             "eve_middle_localization",
             "eve_localization",
@@ -107,16 +162,48 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             "eva_first_val",
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
-        if generalised:
-            mat = self.get_generalised_capacitance_matrix()
-        else:
-            mat = self.get_capacitance_matrix()
+        if real_symmetrisation_acceleratrion:
+            if generalised:
+                V = self.get_material_matrix(return_only_list=True)
+                center_diag = self.__get_capacitance_diagonal()
+                upper_diag = self.__get_capacitance_upper_offdiagonal()
+                lower_diag = self.__get_capacitance_lower_offdiagonal()
 
-        if eigenvalues_only:
-            D = np.linalg.eigvals(mat)
-            S = None
+                a = V*center_diag
+                b = V[:-1]*upper_diag
+                c = V[1:]*lower_diag
+
+                d = np.sign(b)*np.sqrt(b*c)
+            else:
+                a = self.__get_capacitance_diagonal()
+                b = self.__get_capacitance_upper_offdiagonal()
+                c = self.__get_capacitance_lower_offdiagonal()
+
+                d = np.sign(b)*np.sqrt(b*c)
+            if eigenvalues_only:
+                D = sci.linalg.eigh_tridiagonal(
+                    a, d, eigvals_only=True,
+                )
+                S = None
+            else:
+                D, St = sci.linalg.eigh_tridiagonal(
+                    a, d, eigvals_only=False,
+                )
+                cp = np.sqrt(np.concatenate(([1.], np.cumprod(c/b))))
+                CP = np.diag(cp)
+                S = CP@St
+                S = S / np.linalg.norm(S, axis=0)
         else:
-            D, S = np.linalg.eig(mat)
+            if generalised:
+                mat = self.get_generalised_capacitance_matrix()
+            else:
+                mat = self.get_capacitance_matrix()
+
+            if eigenvalues_only:
+                D = np.linalg.eigvals(mat)
+                S = None
+            else:
+                D, S = np.linalg.eig(mat)
 
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S

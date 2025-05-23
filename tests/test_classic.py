@@ -8,7 +8,7 @@ from Subwavelength1D.classic import ClassicFiniteSWP1D, ClassicPeriodicSWP1D
 from Utils.utils_general import unique_eigenvector_phases
 
 
-class HermitianEigAccelerationTests(unittest.TestCase):
+class ClassicTests(unittest.TestCase):
 
     @parameterized.expand([
         ([1, 2, 3], [2, 3], [1, 2, 1]),

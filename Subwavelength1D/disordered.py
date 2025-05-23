@@ -311,9 +311,9 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
                     s[-1] += ss[0]
             else:
                 # Regular Block
-                l = l + ll
-                s = s + ss
-                g = g + gg
+                l = l + list(ll)
+                s = s + list(ss)
+                g = g + list(gg)
         s = s[:-1]
         c = cls(
             N=len(l), l=np.array(l), s=np.array(s), gammas=np.array(g), **params
@@ -322,7 +322,7 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
         c.__setattr__("blocks", blocks)
         return c
 
-    def plot_winding_regions(self, sN=None, ax=None, colors=None):
+    def plot_winding_regions(self, sN=None, ax=None, colors=None, nalpha=10):
         if colors is None:
             colors = ["blue", "red", "green",
                       "purple", "orange", "cyan", "magenta"]
@@ -334,7 +334,7 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
             resonator = NonReciprocalPeriodicSWP1D(
                 N=len(ll), gammas=gg, l=ll, s=ss, v_in=1, v_out=1
             )
-            alphas, bands = resonator.get_band_data()
+            alphas, bands = resonator.get_band_data(nalpha=nalpha)
             for p in range(len(ll)):
                 ax.scatter(np.real(bands[:, p]), np.imag(
-                    bands[:, p]), c=colors[i])
+                    bands[:, p]), c=colors[i], s=3)
