@@ -142,31 +142,3 @@ class EigenvectorPathTracker:
                 self.S[:, idx] = 0
             self.D, self.S = Dn.copy(), Sn.copy()
             return Dn, Sn
-
-
-def plot_eigenvalues(D, colorfunc=None, real=True, ax: Axes | None = None) -> Axes:
-    """
-    Plots the eigenvalues.
-
-    Args:
-        D (np.ndarray): Array of eigenvalues.
-        colorfunc (Callable, optional): Function to determine the color of the points. Defaults to None.
-        ax (Axes | None, optional): Matplotlib Axes object. Defaults to None.
-    """
-    if ax is None:
-        fig, ax = plt.subplots()
-    if real:
-        if colorfunc:
-            ax.scatter(np.arange(len(D)), D, c=colorfunc(D), marker=".")
-        else:
-            ax.scatter(np.arange(len(D)), D, c="black", marker=".")
-        ax.set_xlabel("Site index $i$")
-        ax.set_ylabel(r"$\lambda_i$")
-    else:
-        if colorfunc:
-            ax.scatter(np.real(D), np.imag(D), c=colorfunc(D), marker=".")
-        else:
-            ax.scatter(np.real(D), np.imag(D), c="black", marker=".")
-        ax.set_xlabel(r"$\Re \lambda_i$")
-        ax.set_ylabel(r"$\Im \lambda_i$")
-    return ax

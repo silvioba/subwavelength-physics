@@ -1026,22 +1026,6 @@ def plot_block_characteristics(block, k_min=1e-1, k_max=5, n_pts=1000, ylim=None
     plot_source_sink(mat_fn, k_min, k_max, n_pts, ylim, ax=axes[1])
 
 
-def visualize_spectrum(sp: swp.FiniteSWP1D, j, semilogy=False, axes=None):
-    if not axes:
-        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-    D, S = sp.compute_sorted_eigs_capacitance_matrix()
-    axes[0].plot(D, 'k.')
-    axes[0].plot(j, D[j], 'ro')
-    if semilogy:
-        sv = np.abs(S[:, j])
-        axes[1].semilogy(sv, 'k-')
-    else:
-        sv = np.real(S[:, j])
-        axes[1].plot(sv, 'k-')
-    if semilogy:
-        axes[1].set_yscale('log')
-
-
 def get_block_Lyapunov(block, lbda):
     mat = utils_propagation.propagation_matrix_block_function(
         block, subwavelength=True)(lbda)
