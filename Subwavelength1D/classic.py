@@ -424,7 +424,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
     @override
     def compute_sorted_eigs_capacitance_matrix(
         self,
-        eigenvals_only=False,
+        eigenvalues_only=False,
         generalised=True,
         hermitian_acceleration=True,
         sorting: Literal[
@@ -441,13 +441,13 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                 if generalised:
                     V = self.get_material_matrix(inverted=True)
                     C = self.get_capacitance_matrix()(alpha)
-                    if eigenvals_only:
+                    if eigenvalues_only:
                         D = sci.linalg.eigvalsh(C, b=V)
                         S = None
                     else:
                         D, S = sci.linalg.eigh(C, b=V)
                 else:
-                    if eigenvals_only:
+                    if eigenvalues_only:
                         D = sci.linalg.eigvalsh(
                             self.get_capacitance_matrix()(alpha))
                         S = None
@@ -456,7 +456,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                             self.get_capacitance_matrix()(alpha))
             else:
                 if generalised:
-                    if eigenvals_only:
+                    if eigenvalues_only:
                         D = np.linalg.eigvals(
                             self.compute_generalised_capacitance_matrix()(alpha))
                         S = None
@@ -464,7 +464,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                         D, S = np.linalg.eig(
                             self.compute_generalised_capacitance_matrix()(alpha))
                 else:
-                    if eigenvals_only:
+                    if eigenvalues_only:
                         D = np.linalg.eigvalsh(
                             self.get_capacitance_matrix()(alpha))
                         S = None
