@@ -131,14 +131,19 @@ class EigenvectorPathTracker:
         else:
             Dn = np.zeros_like(D)
             Sn = np.zeros_like(S)
+            correlations = np.abs(S.T @ self.S)
             for i in range(D.shape[0]):
-                # Finding the index of the previous eigenvector that is closest to the current one
-                idx = np.argmax(np.abs(S[:, i].T @ self.S))
+                # Finding the eigenvector pair with the highest correlation
+                idx = np.unravel_index(
+                    np.argmax(correlations, axis=None), correlations.shape)
+                new_idx = idx[0]
+                old_idx = idx[1]
                 # Asserting no index reuse
-                assert Dn[idx] == 0
+                assert Dn[old_idx] == 0
                 # Storing the eigenvalue and eigenvector at the appropriate index
-                Dn[idx], Sn[:, idx] = D[i], S[:, i]
-                # Setting the used eigenvector to zero so that it is not used again
-                self.S[:, idx] = 0
+                Dn[old_idx], Sn[:, old_idx] = D[new_idx], S[:, new_idx]
+                # Setting the correlations to zero so that the pair is not used again
+                correlations[new_idx] = 0
+                correlations[:, old_idx] = 0
             self.D, self.S = Dn.copy(), Sn.copy()
             return Dn, Sn

@@ -38,7 +38,8 @@ class UtilsTests(unittest.TestCase):
         ept = EigenvectorPathTracker()
         D, S = nrp.compute_sorted_eigs_capacitance_matrix()
         D, S = ept.next(D, S)
-        D2, S2 = nrp2.compute_sorted_eigs_capacitance_matrix("eva_imag")
+        D2, S2 = nrp2.compute_sorted_eigs_capacitance_matrix(
+            sorting="eva_imag")
         D2, S2 = ept.next(D2, S2)
         np.testing.assert_allclose(
             D,

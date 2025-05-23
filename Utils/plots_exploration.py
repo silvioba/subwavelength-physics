@@ -47,6 +47,24 @@ def visualize_spectrum(sp: swp.FiniteSWP1D, j, semilogy=False, axes=None):
         axes[1].set_yscale('log')
 
 
+def visualize_spectrum_complex(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=False, axes=None, ylim=None):
+    if not axes:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    if D is None or S is None:
+        D, S = sp.compute_sorted_eigs_capacitance_matrix()
+    # assert np.allclose(np.imag(D), 0), "Eigenvalues are not real"
+    plot_eigenvalues(D, real=False, ax=axes[0])
+    axes[0].plot(np.real(D[j]), np.imag(D[j]), 'ro')
+    if ylim is not None:
+        axes[0].set_ylim(ylim)
+    if semilogy:
+        sv = np.abs(S[:, j])
+        axes[1].semilogy(sv, 'k-')
+    else:
+        sv = np.real(S[:, j])
+        axes[1].plot(sv, 'k-')
+
+
 def visualize_spectrum_with_winding(dp: disordered.DisorderedNonReciprocalFiniteSWP1D, j,
                                     D=None, S=None,
                                     axes=None,
