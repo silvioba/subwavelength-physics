@@ -224,8 +224,8 @@ class FiniteSWP1D(SWP1D):
         N: int,
         l: np.ndarray | float,
         s: np.ndarray | float,
-        v_in: np.ndarray | float | complex | None = None,
-        v_out: float | complex | None = None,
+        v_in: np.ndarray | float | complex = 1,
+        v_out: float | complex = 1,
         delta: float | None = None,
         omega: float | complex | None = None,
         uin=lambda x: np.sin(x),
@@ -359,28 +359,6 @@ class FiniteSWP1D(SWP1D):
 
         thouless_ratios = energy_shifts / level_spacings
         return (thouless_ratios, energy_shifts, level_spacings) if return_all else thouless_ratios
-
-    def plot_eigenvalues(
-        self,
-        generalised=True,
-        real=True,
-        colorfunc=None,
-        ax=None,
-    ):
-        """
-        Plots the eigenvalues of the capacitance matrix.
-
-        Args:
-            generalised (bool, optional): If True, computes the eigenvalues of get_generalised_capacitance_matrix , else get_capacitance_matrix. Defaults to True.
-            sorting (_type_, optional): Sorting for the eigenvalues. If generalised is False, the value is ignored and "real" is used. Defaults to Literal["real"].
-        """
-        if generalised:
-            D, _ = np.linalg.eig(self.get_generalised_capacitance_matrix())
-            D = np.sort(D)
-        else:
-            D, _ = np.linalg.eigh(self.get_capacitance_matrix())
-
-        return utils.plot_eigenvalues(D, colorfunc, real, ax)
 
 
 class PeriodicSWP1D(SWP1D):
