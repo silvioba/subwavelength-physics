@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sci
+from scipy.linalg import null_space, pinv
 
 from Subwavelength1D.classic import *
 from Subwavelength1D.swp import FiniteSWP1D
@@ -20,10 +21,11 @@ from Utils.utils_general import *
 
 class EPArrayClassicFiniteSWP1D(ClassicFiniteSWP1D):
     def __init__(self, N_cells, ep_idx=0, eps=0, **kwargs):
-        N = 2*N_cells + 1
+        self.N_cells = N_cells
         self.ep_idx = ep_idx
         self.theta = np.pi * ep_idx / (2*2*N_cells)
         self.eps = eps
+        N = 2*N_cells + 1
         l = [1]*N
         s = [1]*(N-1)
         s[-1] = 1/eps if eps != 0 else np.inf
@@ -69,6 +71,16 @@ class EPArrayClassicFiniteSWP1D(ClassicFiniteSWP1D):
         unperturbed.set_eps(0)
         return unperturbed
 
+    def get_perturbation_matrix(self):
+        """Returns Delta such that C = C0 + eps*Delta where C0 is the unperturbed generalised capacitance matrix.
+        """
+        Delta = np.zeros((self.N, self.N), dtype=complex)
+        Delta[-2, -2] = self.v_in[-2]
+        Delta[-2, -1] = -self.v_in[-2]
+        Delta[-1, -2] = -1
+        Delta[-1, -1] = 1
+        return Delta
+
     def find_eps(self, order=3, tol=1e-4):
         def split(c):
             return [np.real(c), np.imag(c)]
@@ -92,8 +104,63 @@ class EPArrayClassicFiniteSWP1D(ClassicFiniteSWP1D):
 
         return ep, ep_indices, regular_indices
 
-    def get_ep_convergence_constant(self, eps=1e-5):
+    def get_ep_convergence_constant(self, eps=1e-5, order=3):
         # This should be done exactly in the future
-        ep, ep_indices, regular_indices = self.find_eps()
+        ep, ep_indices, regular_indices = self.find_eps(order=order)
         cp = self.get_unperturbed_copy()
         cp.set_eps(eps)
+        D, _ = cp.compute_sorted_eigs_capacitance_matrix(eigenvalues_only=True)
+        alpha = np.mean(np.power(np.abs(D[ep_indices] - ep), order)/eps)
+        return alpha
+
+    def get_regular_convergence_constant(self, index, eps=1e-5):
+        # This should be done exactly in the future
+        cp = self.get_unperturbed_copy()
+        D0, _ = cp.compute_sorted_eigs_capacitance_matrix(
+            eigenvalues_only=True)
+        cp.set_eps(eps)
+        D, _ = cp.compute_sorted_eigs_capacitance_matrix(
+            eigenvalues_only=True)
+        alpha = np.abs(D[index] - D0[index])/eps
+
+        return alpha
+
+    def compute_alpha(self, index, order=3):
+        def _jordan_chain(A, lam, k=3):
+            """Return right Jordan chain [r0,…,r_{k-1}] for (A,lam)."""
+            Z = A - lam*np.eye(A.shape[0], dtype=A.dtype)
+            r = [null_space(Z)[:, 0]]                 # r0
+            for j in range(1, k):
+                # r_j solves Z r_j = r_{j-1}
+                r.append(pinv(Z) @ r[j-1])
+            return r
+
+        def _left_chain(A, lam, k=3):
+            """Return left Jordan chain [l0,…,l_{k-1}]  (columns, not rows!)."""
+            ZH = (A - lam*np.eye(A.shape[0], dtype=A.dtype)).conj().T
+            l = [null_space(ZH)[:, 0]]                # l0
+            for j in range(1, k):
+                l.append(pinv(ZH) @ l[j-1])          # ZH l_j = l_{j-1}
+            return l
+
+        def _biorthogonalise(l_chain, r_chain):
+            """Rescale the LEFT chain so  l_i^* r_j = δ_{ij}."""
+            L = np.column_stack(l_chain)
+            R = np.column_stack(r_chain)
+            G = np.conj(L).T @ R
+            S = np.linalg.inv(G).conj().T       # G^{-H}
+            Lnew = L @ S
+            return [Lnew[:, i] for i in range(len(r_chain))]
+
+        cp = self.get_unperturbed_copy()
+        D0, _ = cp.compute_sorted_eigs_capacitance_matrix(
+            eigenvalues_only=True)
+        C = cp.get_generalised_capacitance_matrix()
+        Delta = self.get_perturbation_matrix()
+
+        # Compute the right and left Jordan chains
+        r = _jordan_chain(C, D0[index], order)
+        l = _left_chain(C, D0[index], order)
+        # Compute the biorthogonalisation of the left chain
+        l = _biorthogonalise(l, r)
+        return np.abs(np.vdot(l[order-1], Delta @ r[0]))
