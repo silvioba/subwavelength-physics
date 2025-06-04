@@ -337,4 +337,4 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
             alphas, bands = resonator.get_band_data(nalpha=nalpha)
             for p in range(len(ll)):
                 ax.scatter(np.real(bands[:, p]), np.imag(
-                    bands[:, p]), c=colors[i], s=3)
+                    bands[:, p]), c=colors[i], s=5)

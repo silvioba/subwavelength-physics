@@ -208,11 +208,70 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
+    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, regularised: bool = True):
+        if self.omega is None:
+            raise ValueError("omega must be set, is currently None")
+        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
+            raise NotImplementedError(
+                "Propagation matrix is implemented only for structure with same wave number inside and outside."
+            )
+
+        if j == self.N - 1:
+            p = utils_propagation.nonreciprocal_subwavelength_propagation_matrix_single(
+                l=self.l[-1],
+                s=space_from_end,
+                gamma=self.gammas[-1],
+                lbda=self.k_in[-1],
+                regularised=True
+            )
+        else:
+            p = utils_propagation.nonreciprocal_subwavelength_propagation_matrix_single(
+                l=self.l[j],
+                s=self.s[j],
+                gamma=self.gammas[j],
+                lbda=self.k_in[j],
+                regularised=True
+            )
+        return p
+
     def compute_propagation_matrix(
-        self, space_from_end=1, subwavelength=True
+        self, space_from_end: float = 1.0, regularised: bool = True
     ) -> np.ndarray:
-        raise NotImplementedError(
-            "compute_propagation_matrix is not implemented for NonReciprocalFiniteSWP1D")
+        pm = np.eye(2)
+        for j in range(self.N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, regularised=regularised)
+            pm = p @ pm
+        return pm
+
+    def compute_Lyapunov_exponent(self, space_from_end=1, rescale_every=20, max_N=None) -> float:
+        """
+        Computes the Lyapunov exponent for the finite subwavelength wave problem.
+        The Lyapunov exponent is a measure of the exponential growth rate of the wave function.
+        It is computed using the propagation matrix.
+        Raises:
+            ValueError: If omega is not set.
+            NotImplementedError: If the wave number inside and outside the structure are not the same.
+        Returns:
+            float: The Lyapunov exponent.
+        """
+        if max_N is None:
+            max_N = self.N
+        pm = np.eye(2, dtype=float)
+        log_norm_sum = 0.0
+        gamma_li_sum = 0.0
+        for j in range(max_N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, regularised=True)
+            pm = p @ pm
+            gamma_li_sum += self.gammas[j] * self.l[j]
+            if rescale_every is not None and ((j+1) % rescale_every == 0):
+                norm = np.linalg.norm(pm)
+                log_norm_sum += np.log(norm)
+                pm /= norm
+
+        log_norm_sum += np.log(np.linalg.norm(pm))
+        return log_norm_sum/max_N - 1/(2 * max_N) * gamma_li_sum
 
 
 class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):

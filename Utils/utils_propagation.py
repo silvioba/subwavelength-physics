@@ -18,8 +18,23 @@ def get_Q_matrix(k: int | float, x: int | float) -> np.ndarray:
     return np.array([[np.exp(1j * k * x), np.exp(-1j * k * x)], [1j * k * np.exp(1j * k * x), -1j * k * np.exp(-1j * k * x)]])
 
 
-def get_subwavelength_propagation_matrix_single(l, s, k):
-    return np.array([[1 - l * s * k, s], [-l * k, 1]])
+def get_subwavelength_propagation_matrix_single(l, s, lbda):
+    return np.array([[1 - l * s * lbda, s], [-l * lbda, 1]])
+
+
+def nonreciprocal_subwavelength_propagation_matrix_single(
+    l: int | float,
+    s: int | float,
+    gamma: int | float,
+    lbda: int | float,
+    regularised=True,
+) -> np.ndarray:
+    def f(z): return z / (1-np.exp(-z))
+    P = np.array([[1-l*s*lbda/f(gamma*l), np.exp(-gamma*l)*s],
+                  [-l*lbda/f(gamma*l), np.exp(-gamma*l)]])
+    if regularised:
+        P = np.exp(gamma * l / 2) * P
+    return P
 
 
 def propagation_matrix_single(
