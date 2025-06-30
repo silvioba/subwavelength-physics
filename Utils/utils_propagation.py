@@ -27,12 +27,12 @@ def nonreciprocal_subwavelength_propagation_matrix_single(
     s: int | float,
     gamma: int | float,
     lbda: int | float,
-    regularised=True,
+    symmetrised=True,
 ) -> np.ndarray:
     def f(z): return z / (1-np.exp(-z))
     P = np.array([[1-l*s*lbda/f(gamma*l), np.exp(-gamma*l)*s],
                   [-l*lbda/f(gamma*l), np.exp(-gamma*l)]])
-    if regularised:
+    if symmetrised:
         P = np.exp(gamma * l / 2) * P
     return P
 
@@ -90,6 +90,18 @@ def propagation_matrix_block(
     for i in range(len(ll)):
         mat = propagation_matrix_single(
             ll[i], ss[i], k, delta, subwavelength) @ mat
+    return mat
+
+
+def propagation_matrix_nonreciprocal_block(
+    block: Tuple[Tuple[int | float]],
+    k: int | float,
+) -> np.ndarray:
+    mat = np.eye(2)
+    ll, ss, gamma = block
+    for i in range(len(ll)):
+        mat = nonreciprocal_subwavelength_propagation_matrix_single(
+            ll[i], ss[i], gamma[i], k) @ mat
     return mat
 
 
