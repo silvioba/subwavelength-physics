@@ -1,6 +1,7 @@
 import numpy as np
 
 from mpmath import polylog
+from mpmath import mp
 from Subwavelength3D.swp import SWP3D
 
 import matplotlib.pyplot as plt
@@ -53,7 +54,8 @@ def lattice_Sn_3D_1D(k, alp, L1x, N_multi):
                 factor *= (1j * 0.5 * (l + s) * (l - s + 1)) / (s * k * L1x)
             summation += factor * (Li[s, 0] + sign * Li[s, 1])
 
-        Sn[l] = (-1j) ** (l + 1) * np.sqrt((2 * l + 1) / (4 * np.pi)) * summation
+        Sn[l] = (-1j) ** (l + 1) * \
+            np.sqrt((2 * l + 1) / (4 * np.pi)) * summation
 
     Sn[0] = (1 / (k * L1x * np.sqrt(4 * np.pi))) * (
         M(k, alp, L1x) * np.pi
@@ -105,7 +107,8 @@ def evaluate_cns(n, s):
 def Lspm(b, s, pm, k, L):
     # L_s^{\pm} function in 3.11 in paper
     return (
-        (1j) ** s / (k * L) ** (s + 1) * polylog(s + 1, np.exp(1j * (k + pm * b) * L))
+        (1j) ** s / (k * L) ** (s + 1) *
+        polylog(s + 1, np.exp(1j * (k + pm * b) * L))
     )
 
 
@@ -168,7 +171,7 @@ def get_mask_block(N: int, N_multi: int, index: int) -> np.ndarray:
         np.ndarray: array with zeros except of N_multi**2 elements corresponding to the resonator <index>
     """
     idx = np.zeros(N * N_multi**2)
-    idx[N_multi**2 * index : N_multi**2 * (index + 1)] = 1
+    idx[N_multi**2 * index: N_multi**2 * (index + 1)] = 1
 
     return idx
 
@@ -198,7 +201,8 @@ def C_coefficient(l: int, m: int, lp: int, mp: int, lam: int, mu: int) -> float:
 def B_coefficient(alpha, l, m, lp, mp, L, k0, N_multipole):
     B = 0
     for lam in range(N_multipole):
-        B += C_coefficient(l, m, lp, mp, lam, 0) * lattice_sums(alpha, lam, L, k0)
+        B += C_coefficient(l, m, lp, mp, lam, 0) * \
+            lattice_sums(alpha, lam, L, k0)
         # print("======\n")
         # print(alpha, lam, L, k0)
         # print(lattice_sums(alpha, lam, L, k0))
@@ -257,7 +261,8 @@ def precompute_C_and_A_coefficients_pairwise(
         if z < 1e-5:
             A_cache[z] = 0
             continue
-        A_array = np.zeros((max_l, 2 * max_l + 1, max_l, 2 * max_l + 1), dtype=complex)
+        A_array = np.zeros((max_l, 2 * max_l + 1, max_l,
+                           2 * max_l + 1), dtype=complex)
         for l in range(max_l):
             for m in range(-l, l + 1):
                 for lp in range(max_l):
@@ -344,7 +349,7 @@ class ClassicFiniteFWP3D(SWP3D):
                 )
             return A
 
-        c = -1j * self.radii**2
+        c = -1j * np.power(self.radii, 2)
 
         # For each l there are 2l+1 Y^l_m functions. Summing up we get to the following number
         total_number_base_functions = N_multipole**2
@@ -488,10 +493,15 @@ class ClassicFiniteFWP3D(SWP3D):
 
         return S
 
-    def get_capacitance_matrix(self, N_multipole=1) -> np.ndarray:
-        S = self.compute_single_layer_potential_matrix_bruteforce(
-            N_multipole=N_multipole
-        )
+    def get_capacitance_matrix(self, N_multipole=1, use_bruteforce=True) -> np.ndarray:
+        if use_bruteforce:
+            S = self.compute_single_layer_potential_matrix_bruteforce(
+                N_multipole=N_multipole
+            )
+        else:
+            S = self.compute_single_layer_potential_matrix(
+                N_multipole=N_multipole
+            )
         C = np.zeros((self.N, self.N), dtype=complex)
 
         # TODO: S should be symmetric in a classical system. Then we could use cholsesky
@@ -501,8 +511,9 @@ class ClassicFiniteFWP3D(SWP3D):
             u_j = get_mask_block(N=self.N, N_multi=N_multipole, index=j)
             y = np.linalg.lstsq(S, u_j, rcond=None)[
                 0
-            ]  # np.linalg.lstsq(S, u_j, rcond=None)[0]  # np.linalg.solve(R, Q.T @ u_j)
-            plt.plot(y)
+                # np.linalg.lstsq(S, u_j, rcond=None)[0]  # np.linalg.solve(R, Q.T @ u_j)
+            ]
+            # plt.plot(y)
             for i in range(self.N):
                 u_i = get_mask_block(N=self.N, N_multi=N_multipole, index=i)
                 # print(i, j)
@@ -600,7 +611,8 @@ class ClassicPeriodicFWP3D(SWP3D):
                                         * spherical_jn(l, self.k0 * self.radii[i])
                                     )
                         else:
-                            rp = np.linalg.norm(self.centers[i] - self.centers[j])
+                            rp = np.linalg.norm(
+                                self.centers[i] - self.centers[j])
                             for lpp in range(N_multipole):
                                 for mpp in range(-lpp, lpp + 1):
                                     temp = 0
@@ -734,7 +746,8 @@ class ClassicPeriodicFWP3D(SWP3D):
         Q, R = np.linalg.qr(S)
         for j in range(self.N):
             u_j = get_mask_block(N=self.N, N_multi=N_multipole, index=j)
-            y = np.linalg.lstsq(S, u_j, rcond=None)[0]  # np.linalg.solve(R, Q.T @ u_j)
+            # np.linalg.solve(R, Q.T @ u_j)
+            y = np.linalg.lstsq(S, u_j, rcond=None)[0]
             for i in range(self.N):
                 u_i = get_mask_block(N=self.N, N_multi=N_multipole, index=i)
                 C[i, j] = u_i.T @ y * (-4 * np.pi * self.radii[i] ** 2)
