@@ -988,7 +988,7 @@ def plot_band_gap(mat, k_min=1e-1, k_max=5, n_pts=100, ax=None):
     ax.semilogy(ks, np.abs(eves[:, 1]), 'r-')
 
 
-def plot_source_sink(mat, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, ax=None):
+def plot_source_sink(mat, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, ax=None, arctan=False, marker='.'):
     """Plots the source and sink of a given propagation matrix as a function of the wave number k.
 
     Args:
@@ -1007,35 +1007,59 @@ def plot_source_sink(mat, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, ax=None):
     for i, k in enumerate(ks):
         D, S = sort_by_eva_abs(*np.linalg.eig(mat(k)))
         gap[i] = np.imag(D[0]) < 1e-5
-        # Source
-        zs[i, 0] = np.real(S[0, 0] / S[1, 0])
-        # Sink
-        zs[i, 1] = np.real(S[0, 1] / S[1, 1])
-    ax.plot(ks[gap], zs[gap, 0], 'b.')
-    ax.plot(ks[gap], zs[gap, 1], 'r.')
-    if ylim:
+        if arctan:
+            S = unique_eigenvector_phases(S)
+            # Sink
+            zs[i, 0] = np.arctan(np.real(S[1, 0]) / np.real(S[0, 0]))
+            # Source
+            zs[i, 1] = np.arctan(np.real(S[1, 1]) / np.real(S[0, 1]))
+        else:
+            # Sink
+            zs[i, 0] = np.real(S[0, 0] / S[1, 0])
+            # Source
+            zs[i, 1] = np.real(S[0, 1] / S[1, 1])
+    ax.plot(ks[gap], zs[gap, 0], f'r{marker}')
+    ax.plot(ks[gap], zs[gap, 1], f'b{marker}')
+    if ylim and not arctan:
         ax.set_ylim(1-ylim, 1+ylim)
 
 
-def plot_block_characteristics(block, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, axes=None):
+def plot_block_characteristics(block, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, axes=None, arctan=False):
     if axes is None:
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5), sharex=True)
     mat_fn = utils_propagation.propagation_matrix_block_function(
         block, subwavelength=True)
     plot_band_gap(mat_fn, k_min, k_max, n_pts, ax=axes[0])
-    plot_source_sink(mat_fn, k_min, k_max, n_pts, ylim, ax=axes[1])
+    plot_source_sink(mat_fn, k_min, k_max, n_pts,
+                     ylim, ax=axes[1], arctan=arctan)
 
 
 def get_block_Lyapunov(block, lbda):
-    mat = utils_propagation.propagation_matrix_block_function(
-        block, subwavelength=True)(lbda)
+    mat = utils_propagation.propagation_matrix_block(
+        block, lbda, subwavelength=True)
     D, S = sort_by_eva_abs(*np.linalg.eig(mat))
     return np.log(np.abs(D[1]))
 
 
-def estimate_weighted_Lyapunov(lbda, blocks, weights):
-    block_Lyapunovs = [get_block_Lyapunov(blocks[j], lbda)
-                       for j in range(len(blocks))]
+def get_block_Lyapunov_nonreciprocal(block, lbda):
+    mat = utils_propagation.propagation_matrix_nonreciprocal_block(
+        block, lbda)
+
+    gamma_l_sum = 0
+    for i in range(len(block[0])):
+        gamma_l_sum += block[0][i]*block[2][i]
+
+    D, S = sort_by_eva_abs(*np.linalg.eig(mat))
+    return np.log(np.abs(D[1])) - gamma_l_sum / 2
+
+
+def estimate_weighted_Lyapunov(lbda, blocks, weights, nonreciprocal=False):
+    if nonreciprocal:
+        block_Lyapunovs = [get_block_Lyapunov_nonreciprocal(blocks[j], lbda)
+                           for j in range(len(blocks))]
+    else:
+        block_Lyapunovs = [get_block_Lyapunov(blocks[j], lbda)
+                           for j in range(len(blocks))]
     # Calculate the expected value of N/M equal to the expected number of resonators per block
     resonators_per_block = np.sum(
         [weights[j]*len(blocks[j][0]) for j in range(len(blocks))])

@@ -322,10 +322,9 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
         c.__setattr__("blocks", blocks)
         return c
 
-    def plot_winding_regions(self, sN=None, ax=None, colors=None, nalpha=10):
-        if colors is None:
-            colors = ["blue", "red", "green",
-                      "purple", "orange", "cyan", "magenta"]
+    def plot_winding_regions(self, sN=None, ax=None, markers=None, nalpha=10):
+        if markers is None:
+            markers = ["--", ":"]
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=settings.figure_size)
 
@@ -336,5 +335,5 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
             )
             alphas, bands = resonator.get_band_data(nalpha=nalpha)
             for p in range(len(ll)):
-                ax.scatter(np.real(bands[:, p]), np.imag(
-                    bands[:, p]), c=colors[i], s=5)
+                ax.plot(np.real(bands[:, p]), np.imag(
+                    bands[:, p]), markers[i], linewidth=2, color="black")

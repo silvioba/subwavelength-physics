@@ -30,10 +30,11 @@ from collections import deque
 plt.rcParams.update(settings.matplotlib_params)
 
 
-def visualize_spectrum(sp: swp.FiniteSWP1D, j, semilogy=False, axes=None):
-    if not axes:
+def visualize_spectrum(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=False, axes=None):
+    if axes is None:
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-    D, S = sp.compute_sorted_eigs_capacitance_matrix()
+    if D is None or S is None:
+        D, S = sp.compute_sorted_eigs_capacitance_matrix()
     assert np.allclose(np.imag(D), 0), "Eigenvalues are not real"
     axes[0].plot(D, 'k.')
     axes[0].plot(j, D[j], 'ro')
@@ -75,7 +76,7 @@ def visualize_spectrum_with_winding(dp: disordered.DisorderedNonReciprocalFinite
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
     if D is None or S is None:
         D, S = dp.compute_sorted_eigs_capacitance_matrix(
-            real_symmetrisation_acceleratrion=real_symmetrisation_acceleratrion)
+            real_symmetrisation_acceleration=real_symmetrisation_acceleratrion)
     # assert np.allclose(np.imag(D), 0), "Eigenvalues are not real"
     plot_eigenvalues(D, real=False, ax=axes[0])
     dp.plot_winding_regions(ax=axes[0], nalpha=nalpha)
@@ -113,6 +114,63 @@ def visualize_spectrum_with_blockcolors(sp: DisorderedClassicFiniteSWP1D, j, sem
         sv = np.real(S[:, sp.N-j])
         axes[1].plot(sv, 'k-')
     axes[1].scatter(np.arange(sp.N), sv, c=cc, s=10, zorder=2)
+
+
+def get_gap(mat, k_min=1e-1, k_max=5, n_pts=1000):
+    ks = np.linspace(k_min, k_max, n_pts)
+    gap = np.empty(len(ks), dtype=bool)
+    for i, k in enumerate(ks):
+        D, S = sort_by_eva_abs(*np.linalg.eig(mat(k)))
+        gap[i] = np.imag(D[0]) < 1e-5
+    return gap, ks[gap]
+
+
+def get_gap_counts(dp: disordered.DisorderedCommon, k_min=1e-1, k_max=5, n_pts=1000):
+    ks = np.linspace(k_min, k_max, n_pts)
+    block_gaps = np.zeros((len(dp.blocks), n_pts), dtype=bool)
+    for i, block in enumerate(dp.blocks):
+        if dp.get_physics() == "Non-reciprocal":
+            def matfun(lbda): return utils_propagation.propagation_matrix_nonreciprocal_block(
+                block, lbda)
+        else:
+            matfun = utils_propagation.propagation_matrix_block_function(
+                block, subwavelength=True)
+        gap_truth, gap_ks = get_gap(matfun, k_min, k_max, n_pts)
+        block_gaps[i] = gap_truth
+
+    return np.count_nonzero(block_gaps, axis=0), ks
+
+
+def get_region_function(dp: disordered.DisorderedCommon, k_min=1e-1, k_max=5, n_pts=1000, colors_out=True):
+    gap_counts, ks = get_gap_counts(dp, k_min, k_max, n_pts)
+
+    @np.vectorize
+    def region_function(k):
+        n_gaps = gap_counts[np.argmin(np.abs(ks-k))]
+        if n_gaps == 0:
+            return "green" if colors_out else "pass"
+        elif n_gaps == len(dp.blocks):
+            return "red" if colors_out else "gap"
+        else:
+            return "orange" if colors_out else "hybrid"
+    return region_function, np.linspace(k_min, k_max, n_pts)
+
+
+def plot_regions(dp: DisorderedClassicFiniteSWP1D, k_min=1e-3, k_max=5, n_pts=100, horizontal=False, offset=0, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    block_gaps, ks = get_gap_counts(dp, k_min, k_max, n_pts)
+    shared_pass = (block_gaps == 0)
+    shared_gap = (block_gaps == len(dp.blocks))
+    hybrid = (np.logical_not(shared_pass) & np.logical_not(shared_gap))
+    if horizontal:
+        ax.plot(ks[shared_gap], np.zeros(np.sum(shared_gap))+offset, 'r.')
+        ax.plot(ks[shared_pass], np.zeros(np.sum(shared_pass))+offset, 'b.')
+        ax.plot(ks[hybrid], np.zeros(np.sum(hybrid))+offset, 'm.')
+    else:
+        ax.plot(np.zeros(np.sum(shared_gap))+offset, ks[shared_gap], 'r.')
+        ax.plot(np.zeros(np.sum(shared_pass))+offset, ks[shared_pass], 'b.')
+        ax.plot(np.zeros(np.sum(hybrid))+offset, ks[hybrid], 'm.')
 
 
 def plot_eigenvalues(D, colorfunc=None, real=True, ax: Axes | None = None) -> Axes:
