@@ -41,8 +41,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
     def __init__(self, **pars):
         super().__init__(**pars)
 
-    def __str__(self):
-        return super().__str__() + "\nPhysics:      Classic system"
+    @override
+    def get_physics(self):
+        return "Classic"
 
     def set_params(self, **params):
 
@@ -196,57 +197,73 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
-    def get_spectral_range_capacitance_matrix(
+    def compute_spectral_range_capacitance_matrix(
         self,
-        generalised=True,
         select='a',
         select_range=None,
+        eigenvalues_only=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
     ) -> np.ndarray:
         """
-        Calculates the eigenvalues of the capacitance matrix within a specified spectral range.
-        This function computes the eigenvalues of either the regular capacitance matrix or
-        the generalized capacitance matrix (scaled by material properties).
-        Parameters
-        ----------
-        generalised : bool, default=True
-            If True, computes eigenvalues of the generalised capacitance matrix,
-            which includes material property scaling. If False, computes eigenvalues
-            of the regular capacitance matrix.
-        select : {'a', 'v', 'i'}, default='a'
-            Selection criteria for eigenvalues:
-            - 'a': All eigenvalues will be computed
-            - 'v': Eigenvalues in the specified range will be computed
-            - 'i': Eigenvalues with indices in the specified range will be computed
-        select_range : tuple or None, default=None
-            Range specification for eigenvalue selection. Required when select='v' or select='i'.
-            For select='v', this is a tuple (min, max) specifying the value range.
-            For select='i', this is a tuple (min, max) specifying the index range.
-        Returns
-        -------
-        np.ndarray
-            Array containing the calculated eigenvalues of the capacitance matrix.
-        Notes
-        -----
-        The function uses scipy.linalg.eigh_tridiagonal to efficiently compute eigenvalues
-        of the tridiagonal capacitance matrix.
+        Calculates the eigenvalues and optionally eigenvectors of the generalized capacitance matrix.
+
+        This function computes the eigenvalues and eigenvectors of the generalized capacitance matrix,
+        which is scaled by material properties. The computation is performed efficiently using
+        scipy's tridiagonal eigenvalue solver.
+
+            - 'v': Eigenvalues in the specified value range will be computed
+        eigenvalues_only : bool, default=True
+            If True, only eigenvalues are returned. If False, both eigenvalues and eigenvectors are returned.
+        sorting : str, default="eva_real"
+            Method for sorting eigenvalues and eigenvectors:
+            - "eve_middle_localization": Sort by eigenvector localization at the middle of the domain
+            - "eve_localization": Sort by eigenvector localization
+            - "eva_real": Sort by real part of eigenvalues
+            - "eva_imag": Sort by imaginary part of eigenvalues
+            - "eve_abs": Sort by absolute value of eigenvectors
+            - "eva_first_val": Sort by first value of eigenvalues
+
+        tuple or np.ndarray
+            If eigenvalues_only=True, returns np.ndarray of eigenvalues.
+            If eigenvalues_only=False, returns a tuple (D, S) where:
+                - D: np.ndarray of eigenvalues
+                - S: np.ndarray of eigenvectors, normalized and properly scaled
+
+        The generalized capacitance matrix is constructed by scaling the regular capacitance matrix
+        with material properties. The eigenvalues and eigenvectors are computed using 
+        scipy.linalg.eigh_tridiagonal for efficiency, as the capacitance matrix has a tridiagonal structure.
+
+        The eigenvectors are scaled by the material properties and then normalized.
         """
-        if generalised:
-            Vl = self.get_material_matrix(
-                inverted=False, perform_sqrt=True, return_only_list=True)
-            cdiag = self.__get_capacitance_diagonal()*(Vl**2)
-            coffdiag = self.__get_capacitance_offdiagonal()*(
-                Vl[:-1]*Vl[1:])
+
+        Vl = self.get_material_matrix(
+            inverted=False, perform_sqrt=True, return_only_list=True)
+        cdiag = self.__get_capacitance_diagonal()*(Vl**2)
+        coffdiag = self.__get_capacitance_offdiagonal()*(
+            Vl[:-1]*Vl[1:])
+        if eigenvalues_only:
             D = sci.linalg.eigh_tridiagonal(
                 cdiag, coffdiag, eigvals_only=True,
                 select=select, select_range=select_range
             )
+            S = None
         else:
-            cdiag = self.__get_capacitance_diagonal()
-            coffdiag = self.__get_capacitance_offdiagonal()
-            D = sci.linalg.eigh_tridiagonal(
-                cdiag, coffdiag, eigvals_only=True)
+            D, St = sci.linalg.eigh_tridiagonal(
+                cdiag, coffdiag, eigvals_only=False,
+                select=select, select_range=select_range
+            )
+            S = Vl.reshape(-1, 1) * St
+            S = S / np.linalg.norm(S, axis=0)
 
-        return D
+        D, S = utils.sort_by_method(D, S, sorting)
+        return D, S
 
     def compute_greens_matrix(self, k):
         return np.linalg.inv(
@@ -372,6 +389,10 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
 
     def __init__(self, **pars):
         super().__init__(**pars)
+
+    @override
+    def get_physics(self):
+        return "Classic"
 
     @override
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:

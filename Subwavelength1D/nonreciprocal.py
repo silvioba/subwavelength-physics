@@ -42,8 +42,9 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             gammas = np.ones(self.N) * gammas
         self.gammas = np.array(gammas, dtype=float)
 
-    def __str__(self):
-        return super().__str__() + "\nPhysics:      Non-reciprocal system"
+    @override
+    def get_physics(self):
+        return "Non-reciprocal"
 
     def set_params(self, **params):
         for key, val in params.items():
@@ -152,7 +153,8 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         self,
         eigenvalues_only=False,
         generalised=True,
-        real_symmetrisation_acceleratrion=True,
+        real_symmetrisation_acceleration=True,
+        retransform_eigenvectors=True,
         sorting: Literal[
             "eve_middle_localization",
             "eve_localization",
@@ -162,7 +164,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             "eva_first_val",
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
-        if real_symmetrisation_acceleratrion:
+        if real_symmetrisation_acceleration:
             if generalised:
                 V = self.get_material_matrix(return_only_list=True)
                 center_diag = self.__get_capacitance_diagonal()
@@ -189,10 +191,13 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
                 D, St = sci.linalg.eigh_tridiagonal(
                     a, d, eigvals_only=False,
                 )
-                cp = np.sqrt(np.concatenate(([1.], np.cumprod(c/b))))
-                CP = np.diag(cp)
-                S = CP@St
-                S = S / np.linalg.norm(S, axis=0)
+                if retransform_eigenvectors:
+                    cp = np.sqrt(np.concatenate(([1.], np.cumprod(c/b))))
+                    CP = np.diag(cp)
+                    S = CP@St
+                    S = S / np.linalg.norm(S, axis=0)
+                else:
+                    S = St
         else:
             if generalised:
                 mat = self.get_generalised_capacitance_matrix()
@@ -208,7 +213,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
-    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, regularised: bool = True):
+    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, symmetrised: bool = True):
         if self.omega is None:
             raise ValueError("omega must be set, is currently None")
         if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
@@ -222,7 +227,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
                 s=space_from_end,
                 gamma=self.gammas[-1],
                 lbda=self.k_in[-1],
-                regularised=True
+                symmetrised=symmetrised
             )
         else:
             p = utils_propagation.nonreciprocal_subwavelength_propagation_matrix_single(
@@ -230,7 +235,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
                 s=self.s[j],
                 gamma=self.gammas[j],
                 lbda=self.k_in[j],
-                regularised=True
+                symmetrised=symmetrised
             )
         return p
 
@@ -244,7 +249,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             pm = p @ pm
         return pm
 
-    def compute_Lyapunov_exponent(self, space_from_end=1, rescale_every=20, max_N=None) -> float:
+    def compute_Lyapunov_exponent(self, space_from_end=1, rescale_every=20, max_N=None, return_parts=False) -> float:
         """
         Computes the Lyapunov exponent for the finite subwavelength wave problem.
         The Lyapunov exponent is a measure of the exponential growth rate of the wave function.
@@ -262,7 +267,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         gamma_li_sum = 0.0
         for j in range(max_N):
             p = self.get_resonator_propagation_matrix(
-                j=j, space_from_end=space_from_end, regularised=True)
+                j=j, space_from_end=space_from_end, symmetrised=True)
             pm = p @ pm
             gamma_li_sum += self.gammas[j] * self.l[j]
             if rescale_every is not None and ((j+1) % rescale_every == 0):
@@ -271,7 +276,10 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
                 pm /= norm
 
         log_norm_sum += np.log(np.linalg.norm(pm))
-        return log_norm_sum/max_N - 1/(2 * max_N) * gamma_li_sum
+        if return_parts:
+            return log_norm_sum/max_N, 1/(2 * max_N) * gamma_li_sum
+        else:
+            return log_norm_sum/max_N - 1/(2 * max_N) * gamma_li_sum
 
 
 class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
@@ -286,6 +294,10 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         if isinstance(gammas, (int, float)):
             gammas = np.ones(self.N) * gammas
         self.gammas = np.array(gammas, dtype=float)
+
+    @override
+    def get_physics(self):
+        return "Non-reciprocal"
 
     @override
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:

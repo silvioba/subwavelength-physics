@@ -137,7 +137,8 @@ class SWP1D:
         self,
         p: float,
         perturb_param: Literal["spacing", "sizes", "material"] = "spacing",
-        p_sampling: Literal["uniform", "positive", "loguniform"] = "uniform",
+        p_sampling: Literal["uniform", "positive",
+                            "loguniform", "lognormal"] = "uniform",
     ):
         """
         Generate a perturbed copy of the current object.
@@ -146,7 +147,7 @@ class SWP1D:
             p (float): The perturbation magnitude.
             perturb_param (Literal["spacing", "sizes", "material"], optional):
             The parameter to perturb. Defaults to "spacing".
-            p_sampling (Literal["uniform", "positive", "loguniform"], optional):
+            p_sampling (Literal["uniform", "positive", "loguniform", "lognormal"], optional):
             The sampling method for perturbation. Defaults to "uniform".
 
         Returns:
@@ -171,6 +172,10 @@ class SWP1D:
         elif p_sampling == "loguniform":
             perturbation = np.random.uniform(10**-p, 10**p, len(perturb_array))
             perturb_array *= perturbation
+        elif p_sampling == "lognormal":
+            perturbation = np.random.lognormal(
+                mean=0, sigma=p, size=len(perturb_array))
+            perturb_array *= perturbation
 
         if perturb_param == "spacing":
             dp_perturbed.set_geometry(dp_perturbed.l, perturb_array)
@@ -180,6 +185,9 @@ class SWP1D:
             dp_perturbed.v_in = perturb_array
 
         return dp_perturbed
+
+    def get_physics(self):
+        raise NotImplementedError
 
     def plot_geometry(self):
         fig, ax = plt.subplots()
@@ -265,7 +273,7 @@ class FiniteSWP1D(SWP1D):
         super().__init__(N, l, s, v_in, v_out, delta, omega, uin, duin)
 
     def __str__(self):
-        return f"One Dimensional Finite system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}."
+        return f"One Dimensional Finite system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}. \nPhysics: {self.get_physics()}"
 
     def __repr__(self):
         return self.__str__()
@@ -418,7 +426,7 @@ class PeriodicSWP1D(SWP1D):
         )
 
     def __str__(self):
-        return f"One Dimensional Periodic system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}."
+        return f"One Dimensional Periodic system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}. \nPhysics: {self.get_physics()}"
 
     def __repr__(self):
         return self.__str__()
