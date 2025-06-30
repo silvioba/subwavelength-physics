@@ -115,7 +115,7 @@ def get_metaatom_solutions(bulk_block, defect_block, metaatom, d=10, midgap=1.5)
         [0]*d+list(metaatom)+[0]*d,
         v_in=1, v_out=1
     )
-    D = dp_dirichlet.get_spectral_range_capacitance_matrix()
+    D = dp_dirichlet.compute_spectral_range_capacitance_matrix()
     return list(D[D > midgap])
 
 

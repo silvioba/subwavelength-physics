@@ -45,7 +45,7 @@ def calculate_fractal_DoS(background_block, defect_block, weights, spectum_cutof
             [0]*n_padding+list(seq)+[0]*n_padding,
             v_in=1, v_out=1
         )
-        DD = dp.get_spectral_range_capacitance_matrix()
+        DD = dp.compute_spectral_range_capacitance_matrix()
         DD = DD[DD > spectum_cutoff]
         for d in DD:
             density_of_states.append((d, p))
@@ -99,7 +99,7 @@ def plot_iDoS(sp: ClassicFiniteSWP1D = None, D=None, dos_min=1.5, dos_max=3.5, l
 
     if D is None:
         assert sp is not None
-        D = sp.get_spectral_range_capacitance_matrix(
+        D = sp.compute_spectral_range_capacitance_matrix(
             select='v', select_range=(dos_min, dos_max))
 
     ax.ecdf(D, color=color, label=label)
@@ -114,7 +114,7 @@ def plot_DoS(sp: ClassicFiniteSWP1D = None, D=None, basic_block=None, dimer_bloc
                                      dos_min, dos_max, ax, styles)
     if D is None:
         assert sp is not None
-        D = sp.get_spectral_range_capacitance_matrix(
+        D = sp.compute_spectral_range_capacitance_matrix(
             select='v', select_range=(dos_min, dos_max))
 
     hist, edges = np.histogram(D, bins=bins)

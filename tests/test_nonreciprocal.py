@@ -90,9 +90,9 @@ class NonReciprocalTests(unittest.TestCase):
             N=len(ls), l=ls, s=ss, gammas=gg, v_in=v_in, v_out=1)
 
         D1, S1 = cp.compute_sorted_eigs_capacitance_matrix(
-            real_symmetrisation_acceleratrion=True, generalised=generalized)
+            real_symmetrisation_acceleration=True, generalised=generalized)
         D2, S2 = cp.compute_sorted_eigs_capacitance_matrix(
-            real_symmetrisation_acceleratrion=False, generalised=generalized)
+            real_symmetrisation_acceleration=False, generalised=generalized)
 
         S1 = unique_eigenvector_phases(S1)
         S2 = unique_eigenvector_phases(S2)
