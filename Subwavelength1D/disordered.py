@@ -1,6 +1,8 @@
 import numpy as np
+import scipy as sci
 
-from Subwavelength1D.classic import ClassicFiniteSWP1D
+from Subwavelength1D.classic import *
+from Subwavelength1D.swp import FiniteSWP1D
 
 from Subwavelength1D.nonreciprocal import NonReciprocalFiniteSWP1D, NonReciprocalPeriodicSWP1D
 
@@ -17,17 +19,17 @@ from Utils.utils_general import *
 plt.rcParams.update(settings.matplotlib_params)
 
 
-class DisorderedCommon:
+class DisorderedCommon(FiniteSWP1D):
     @classmethod
     def from_blocks(
-        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+        cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params
     ) -> Self:
         raise NotImplementedError
 
     @classmethod
     def from_blocks_random(
         cls,
-        blocks: List[Tuple[List[int | float]]],
+        blocks: List[Tuple[Tuple[int | float]]],
         n_reps: int,
         weights: List[float] | None = None,
         seed=42,
@@ -58,6 +60,14 @@ class DisorderedCommon:
             idxs=np.random.choice(len(blocks), n_reps, p=weights),
             **params,
         )
+
+    def get_sN(self):
+        """Get the final spacing of the system.
+
+        Returns:
+            float: Final spacing of the system
+        """
+        return self.blocks[self.idxs[-1]][1][-1]
 
     def get_block_list(self):
         """Get the list of len(self.idxs) containing the corresponding blocks, as specified by self.idx.
@@ -170,7 +180,7 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
 
     @classmethod
     def from_blocks(
-        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+        cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params
     ) -> Self:
         """
         Constructs a finite classical system of disorded blocks of resonators
@@ -194,13 +204,60 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
                     s[-1] += ss[0]
             else:
                 # Regular Block
-                l = l + ll
-                s = s + ss
+                l = l + list(ll)
+                s = s + list(ss)
         s = s[:-1]
         c = cls(N=len(l), l=np.array(l), s=np.array(s), **params)
         c.__setattr__("idxs", idxs)
         c.__setattr__("blocks", blocks)
         return c
+
+    @override
+    def get_periodized_system(self, sN=None) -> ClassicPeriodicSWP1D:
+        """Get the periodized system of the disordered system by calculating s_N and converting the finite system into a periodic one.
+
+        Returns:
+            pwp: Periodized system
+        """
+        if sN is None:
+            sN = self.get_sN()
+        pwp = convert_finite_into_periodic(self, sN)
+        return pwp
+
+    def get_Pj(self, j, subwavelength=True):
+        """Get the Propagation matrix for the j-th resonator.
+
+        Args:
+            j (int): Index of the resonator
+            subwavelength (bool, optional): Whether to use subwavelength approximation. Defaults to True.
+
+        Returns:
+            np.ndarray: Pj matrix
+        """
+        if self.omega is None:
+            raise ValueError("omega must be set, is currently None")
+        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
+            raise NotImplementedError(
+                "Propagation matrix is implemented only for structure with same wave number inside and outside."
+            )
+
+        if j == self.N - 1:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[-1],
+                s=self.get_sN(),
+                k=self.k_in[-1],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        else:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[j],
+                s=self.s[j],
+                k=self.k_in[j],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        return p
 
 
 class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCommon):
@@ -229,7 +286,7 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
 
     @classmethod
     def from_blocks(
-        cls, blocks: List[Tuple[List[int | float]]], idxs: List[int], **params
+        cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params
     ) -> Self:
         """
         Constructs a finite classical system of disorded blocks of resonators
@@ -254,9 +311,9 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
                     s[-1] += ss[0]
             else:
                 # Regular Block
-                l = l + ll
-                s = s + ss
-                g = g + gg
+                l = l + list(ll)
+                s = s + list(ss)
+                g = g + list(gg)
         s = s[:-1]
         c = cls(
             N=len(l), l=np.array(l), s=np.array(s), gammas=np.array(g), **params
@@ -265,10 +322,9 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
         c.__setattr__("blocks", blocks)
         return c
 
-    def plot_winding_regions(self, sN=None, ax=None, colors=None):
-        if colors is None:
-            colors = ["blue", "red", "green",
-                      "purple", "orange", "cyan", "magenta"]
+    def plot_winding_regions(self, sN=None, ax=None, markers=None, nalpha=10):
+        if markers is None:
+            markers = ["--", ":"]
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=settings.figure_size)
 
@@ -277,7 +333,7 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
             resonator = NonReciprocalPeriodicSWP1D(
                 N=len(ll), gammas=gg, l=ll, s=ss, v_in=1, v_out=1
             )
-            alphas, bands = resonator.get_band_data()
+            alphas, bands = resonator.get_band_data(nalpha=nalpha)
             for p in range(len(ll)):
-                ax.scatter(np.real(bands[:, p]), np.imag(
-                    bands[:, p]), c=colors[i])
+                ax.plot(np.real(bands[:, p]), np.imag(
+                    bands[:, p]), markers[i], linewidth=2, color="black")

@@ -16,9 +16,9 @@ class UtilsTests(unittest.TestCase):
         nrp = NonReciprocalFiniteSWP1D(
             N=len(ls), l=ls, s=ss, gammas=gg, v_in=1, v_out=1)
         ept = EigenvectorPathTracker()
-        D, S = nrp.get_sorted_eigs_capacitance_matrix()
+        D, S = nrp.compute_sorted_eigs_capacitance_matrix()
         D, S = ept.next(D, S)
-        D2, S2 = nrp.get_sorted_eigs_capacitance_matrix(sorting="eva_imag")
+        D2, S2 = nrp.compute_sorted_eigs_capacitance_matrix(sorting="eva_imag")
         D2, S2 = ept.next(D2, S2)
         np.testing.assert_allclose(
             D,
@@ -36,9 +36,10 @@ class UtilsTests(unittest.TestCase):
         nrp2 = NonReciprocalFiniteSWP1D(
             N=len(ls), gammas=np.array(gg)+1e-4, l=ls, s=ss, v_in=1, v_out=1)
         ept = EigenvectorPathTracker()
-        D, S = nrp.get_sorted_eigs_capacitance_matrix()
+        D, S = nrp.compute_sorted_eigs_capacitance_matrix()
         D, S = ept.next(D, S)
-        D2, S2 = nrp2.get_sorted_eigs_capacitance_matrix("eva_imag")
+        D2, S2 = nrp2.compute_sorted_eigs_capacitance_matrix(
+            sorting="eva_imag")
         D2, S2 = ept.next(D2, S2)
         np.testing.assert_allclose(
             D,

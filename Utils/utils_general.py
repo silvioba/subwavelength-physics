@@ -131,42 +131,19 @@ class EigenvectorPathTracker:
         else:
             Dn = np.zeros_like(D)
             Sn = np.zeros_like(S)
+            correlations = np.abs(S.T @ self.S)
             for i in range(D.shape[0]):
-                # Finding the index of the previous eigenvector that is closest to the current one
-                idx = np.argmax(np.abs(S[:, i].T @ self.S))
+                # Finding the eigenvector pair with the highest correlation
+                idx = np.unravel_index(
+                    np.argmax(correlations, axis=None), correlations.shape)
+                new_idx = idx[0]
+                old_idx = idx[1]
                 # Asserting no index reuse
-                assert Dn[idx] == 0
+                assert Dn[old_idx] == 0
                 # Storing the eigenvalue and eigenvector at the appropriate index
-                Dn[idx], Sn[:, idx] = D[i], S[:, i]
-                # Setting the used eigenvector to zero so that it is not used again
-                self.S[:, idx] = 0
+                Dn[old_idx], Sn[:, old_idx] = D[new_idx], S[:, new_idx]
+                # Setting the correlations to zero so that the pair is not used again
+                correlations[new_idx] = 0
+                correlations[:, old_idx] = 0
             self.D, self.S = Dn.copy(), Sn.copy()
             return Dn, Sn
-
-
-def plot_eigenvalues(D, colorfunc=None, real=True, ax: Axes | None = None) -> Axes:
-    """
-    Plots the eigenvalues.
-
-    Args:
-        D (np.ndarray): Array of eigenvalues.
-        colorfunc (Callable, optional): Function to determine the color of the points. Defaults to None.
-        ax (Axes | None, optional): Matplotlib Axes object. Defaults to None.
-    """
-    if ax is None:
-        fig, ax = plt.subplots()
-    if real:
-        if colorfunc:
-            ax.scatter(np.arange(len(D)), D, c=colorfunc(D), marker=".")
-        else:
-            ax.scatter(np.arange(len(D)), D, c="black", marker=".")
-        ax.set_xlabel("Site index $i$")
-        ax.set_ylabel(r"$\lambda_i$")
-    else:
-        if colorfunc:
-            ax.scatter(np.real(D), np.imag(D), c=colorfunc(D), marker=".")
-        else:
-            ax.scatter(np.real(D), np.imag(D), c="black", marker=".")
-        ax.set_xlabel(r"$\Re \lambda_i$")
-        ax.set_ylabel(r"$\Im \lambda_i$")
-    return ax

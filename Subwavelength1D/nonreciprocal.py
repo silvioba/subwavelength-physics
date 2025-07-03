@@ -5,7 +5,7 @@ from Subwavelength1D.swp import (
     PeriodicSWP1D,
 )
 
-import Subwavelength1D.utils_propagation as utils_propagation
+import Utils.utils_propagation as utils_propagation
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -42,8 +42,9 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             gammas = np.ones(self.N) * gammas
         self.gammas = np.array(gammas, dtype=float)
 
-    def __str__(self):
-        return super().__str__() + "\nPhysics:      Non-reciprocal system"
+    @override
+    def get_physics(self):
+        return "Non-reciprocal"
 
     def set_params(self, **params):
         for key, val in params.items():
@@ -55,20 +56,8 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
                 )
         check_parameters_inconsitencies(self)
 
-    @override
-    def get_capacitance_matrix(self) -> np.ndarray:
-        """
-        Computes the gauge capacitance matrix C from eq (20) in [1]. Note that the paper contains wrong indicies. This implementation is corrected.
-
-        Returns:
-            np.ndarray:
-        """
+    def __get_capacitance_diagonal(self) -> np.ndarray:
         assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
-        upper_diag = - self.gammas[:-1] * self.l[:-1] / (
-            self.s * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
-        lower_diag = self.gammas[1:] * self.l[1:] / (
-            self.s * (1-np.exp(self.gammas[1:]*self.l[1:])))
-
         first_coef = self.gammas[0] * self.l[0] / (
             self.s[0] * (1-np.exp(-self.gammas[0]*self.l[0])))
         last_coef = - self.gammas[-1] * self.l[-1] / (
@@ -78,6 +67,49 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             1/(self.s[1:]*(1-np.exp(-self.gammas[1:-1] * self.l[1:-1]))) - 1/(self.s[:-1]*(1-np.exp(self.gammas[1:-1]*self.l[1:-1]))))
 
         center_diag = np.concatenate([[first_coef], center_diag, [last_coef]])
+
+        # Handle the case where gammas are very small to avoid 0/0
+        low_gammas = np.nonzero(np.abs(self.gammas) < 1e-14)[0]
+        for i in low_gammas:
+            if i == 0:
+                center_diag[0] = 1 / self.s[0]
+            elif i == self.N - 1:
+                center_diag[-1] = 1 / self.s[-1]
+            else:
+                center_diag[i] = 1 / self.s[i-1] + 1 / self.s[i]
+        return center_diag
+
+    def __get_capacitance_upper_offdiagonal(self) -> np.ndarray:
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
+        upper_diag = - self.gammas[:-1] * self.l[:-1] / (
+            self.s * (1-np.exp(-self.gammas[:-1]*self.l[:-1])))
+        # Handle the case where gammas are very small to avoid 0/0
+        low_gammas = np.nonzero(np.abs(self.gammas[:-1]) < 1e-14)[0]
+        for i in low_gammas:
+            upper_diag[i] = - 1 / self.s[i]
+        return upper_diag
+
+    def __get_capacitance_lower_offdiagonal(self) -> np.ndarray:
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
+        lower_diag = self.gammas[1:] * self.l[1:] / (
+            self.s * (1-np.exp(self.gammas[1:]*self.l[1:])))
+        # Handle the case where gammas are very small to avoid 0/0
+        low_gammas = np.nonzero(np.abs(self.gammas[1:]) < 1e-14)[0]
+        for i in low_gammas:
+            lower_diag[i] = - 1 / self.s[i]
+        return lower_diag
+
+    @override
+    def get_capacitance_matrix(self) -> np.ndarray:
+        """
+        Computes the gauge capacitance matrix C from eq (20) in [1]. Note that the paper contains wrong indicies. This implementation is corrected.
+
+        Returns:
+            np.ndarray:
+        """
+        center_diag = self.__get_capacitance_diagonal()
+        upper_diag = self.__get_capacitance_upper_offdiagonal()
+        lower_diag = self.__get_capacitance_lower_offdiagonal()
 
         C = np.diag(center_diag) + np.diag(upper_diag, 1) + \
             np.diag(lower_diag, -1)
@@ -93,11 +125,36 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         """
         return self.get_material_matrix() @ self.get_capacitance_matrix()
 
+    def get_symmetrised_generalised_capacitance_matrix(self) -> np.ndarray:
+        """
+        Computes the gauge capacitance matrix C premultiplied by V^2 L^{-1} where V is the diagonal matrix of wavespeeds inside the resonators and L the matrix of lengths of the resonators
+
+        Returns:
+            np.ndarray:
+        """
+        V = self.get_material_matrix(return_only_list=True)
+        center_diag = self.__get_capacitance_diagonal()
+        upper_diag = self.__get_capacitance_upper_offdiagonal()
+        lower_diag = self.__get_capacitance_lower_offdiagonal()
+
+        a = V*center_diag
+        b = V[:-1]*upper_diag
+        c = V[1:]*lower_diag
+
+        d = np.sign(b)*np.sqrt(b*c)
+
+        C = np.diag(a) + np.diag(d, 1) + \
+            np.diag(d, -1)
+
+        return C
+
     @override
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
+        real_symmetrisation_acceleration=True,
+        retransform_eigenvectors=True,
         sorting: Literal[
             "eve_middle_localization",
             "eve_localization",
@@ -107,23 +164,56 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             "eva_first_val",
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
-        if generalised:
-            mat = self.get_generalised_capacitance_matrix()
-        else:
-            mat = self.get_capacitance_matrix()
+        if real_symmetrisation_acceleration:
+            if generalised:
+                V = self.get_material_matrix(return_only_list=True)
+                center_diag = self.__get_capacitance_diagonal()
+                upper_diag = self.__get_capacitance_upper_offdiagonal()
+                lower_diag = self.__get_capacitance_lower_offdiagonal()
 
-        if eigenvalues_only:
-            D = np.linalg.eigvals(mat)
-            S = None
+                a = V*center_diag
+                b = V[:-1]*upper_diag
+                c = V[1:]*lower_diag
+
+                d = np.sign(b)*np.sqrt(b*c)
+            else:
+                a = self.__get_capacitance_diagonal()
+                b = self.__get_capacitance_upper_offdiagonal()
+                c = self.__get_capacitance_lower_offdiagonal()
+
+                d = np.sign(b)*np.sqrt(b*c)
+            if eigenvalues_only:
+                D = sci.linalg.eigh_tridiagonal(
+                    a, d, eigvals_only=True,
+                )
+                S = None
+            else:
+                D, St = sci.linalg.eigh_tridiagonal(
+                    a, d, eigvals_only=False,
+                )
+                if retransform_eigenvectors:
+                    cp = np.sqrt(np.concatenate(([1.], np.cumprod(c/b))))
+                    CP = np.diag(cp)
+                    S = CP@St
+                    S = S / np.linalg.norm(S, axis=0)
+                else:
+                    S = St
         else:
-            D, S = np.linalg.eig(mat)
+            if generalised:
+                mat = self.get_generalised_capacitance_matrix()
+            else:
+                mat = self.get_capacitance_matrix()
+
+            if eigenvalues_only:
+                D = np.linalg.eigvals(mat)
+                S = None
+            else:
+                D, S = np.linalg.eig(mat)
 
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
-    def compute_propagation_matrix(
-        self, space_from_end=1, subwavelength=True
-    ) -> np.ndarray:
+    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, symmetrised: bool = True):
         if self.omega is None:
             raise ValueError("omega must be set, is currently None")
         if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
@@ -131,25 +221,65 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
                 "Propagation matrix is implemented only for structure with same wave number inside and outside."
             )
 
-        pm = np.eye(2)
-        for i in range(self.N - 1):
-            p = utils_propagation.propagation_matrix_single(
-                l=self.l[i],
-                s=self.s[i],
-                k=self.k_in[i],
-                delta=self.delta,
-                subwavelength=subwavelength,
+        if j == self.N - 1:
+            p = utils_propagation.nonreciprocal_subwavelength_propagation_matrix_single(
+                l=self.l[-1],
+                s=space_from_end,
+                gamma=self.gammas[-1],
+                lbda=self.k_in[-1],
+                symmetrised=symmetrised
             )
+        else:
+            p = utils_propagation.nonreciprocal_subwavelength_propagation_matrix_single(
+                l=self.l[j],
+                s=self.s[j],
+                gamma=self.gammas[j],
+                lbda=self.k_in[j],
+                symmetrised=symmetrised
+            )
+        return p
+
+    def compute_propagation_matrix(
+        self, space_from_end: float = 1.0, regularised: bool = True
+    ) -> np.ndarray:
+        pm = np.eye(2)
+        for j in range(self.N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, regularised=regularised)
             pm = p @ pm
-        p = utils_propagation.propagation_matrix_single(
-            l=self.l[-1],
-            s=space_from_end,
-            k=self.k_in[i],
-            delta=self.delta,
-            subwavelength=subwavelength,
-        )
-        pm = p @ pm
         return pm
+
+    def compute_Lyapunov_exponent(self, space_from_end=1, rescale_every=20, max_N=None, return_parts=False) -> float:
+        """
+        Computes the Lyapunov exponent for the finite subwavelength wave problem.
+        The Lyapunov exponent is a measure of the exponential growth rate of the wave function.
+        It is computed using the propagation matrix.
+        Raises:
+            ValueError: If omega is not set.
+            NotImplementedError: If the wave number inside and outside the structure are not the same.
+        Returns:
+            float: The Lyapunov exponent.
+        """
+        if max_N is None:
+            max_N = self.N
+        pm = np.eye(2, dtype=float)
+        log_norm_sum = 0.0
+        gamma_li_sum = 0.0
+        for j in range(max_N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, symmetrised=True)
+            pm = p @ pm
+            gamma_li_sum += self.gammas[j] * self.l[j]
+            if rescale_every is not None and ((j+1) % rescale_every == 0):
+                norm = np.linalg.norm(pm)
+                log_norm_sum += np.log(norm)
+                pm /= norm
+
+        log_norm_sum += np.log(np.linalg.norm(pm))
+        if return_parts:
+            return log_norm_sum/max_N, 1/(2 * max_N) * gamma_li_sum
+        else:
+            return log_norm_sum/max_N - 1/(2 * max_N) * gamma_li_sum
 
 
 class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
@@ -164,6 +294,10 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         if isinstance(gammas, (int, float)):
             gammas = np.ones(self.N) * gammas
         self.gammas = np.array(gammas, dtype=float)
+
+    @override
+    def get_physics(self):
+        return "Non-reciprocal"
 
     @override
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
@@ -211,7 +345,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         return C
 
     @override
-    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
 
@@ -221,7 +355,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         return lambda alpha: self.get_material_matrix() @ self.get_capacitance_matrix()(alpha)
 
     @override
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
         eigenvalues_only=False,
         generalised=True,
@@ -236,7 +370,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
         def eig(alpha):
             if generalised:
-                mat = self.get_generalised_capacitance_matrix()(alpha)
+                mat = self.compute_generalised_capacitance_matrix()(alpha)
             else:
                 mat = self.get_capacitance_matrix()(alpha)
 

@@ -1,0 +1,19 @@
+== The 3D capacitance matrix
+:stem: latexmath
+=== Introduction
+
+This short note is intended to provide a scientific motivation for the code in this directory. This should be understood as a worked out example of the theory developed in the papers, see <<FA_review>> and Appendix A of <<top_prot>>.
+
+Bla bla bla, at the end of the day you want to compute the single layer potential evaluated at the spherical harmonics.
+
+
+[stem]
+++++
+\mathcal{S}_D^k[Y_{\ell}^m](r,\theta,\phi) 
+++++
+
+
+[bibliography]
+== References
+* [[[FA_review]]] H. Ammari, B. Davies, and E. Orvehed Hiltunen, “Functional analytic methods for discrete approximations of subwavelength resonator systems,” Pure and Applied Analysis, vol. 6, no. 3, pp. 873–939, Oct. 2024, doi: 10.2140/paa.2024.6.873.
+* [[[top_prot]]] H. Ammari, B. Davies, E. O. Hiltunen, and S. Yu, “Topologically protected edge modes in one-dimensional chains of subwavelength resonators,” Journal de Mathématiques Pures et Appliquées, vol. 144, pp. 17–49, Dec. 2020, doi: 10.1016/j.matpur.2020.08.007.

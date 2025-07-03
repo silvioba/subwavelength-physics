@@ -18,8 +18,23 @@ def get_Q_matrix(k: int | float, x: int | float) -> np.ndarray:
     return np.array([[np.exp(1j * k * x), np.exp(-1j * k * x)], [1j * k * np.exp(1j * k * x), -1j * k * np.exp(-1j * k * x)]])
 
 
-def get_subwavelength_propagation_matrix_single(l, s, k):
-    return np.array([[1 - l * s * k, s], [-l * k, 1]])
+def get_subwavelength_propagation_matrix_single(l, s, lbda):
+    return np.array([[1 - l * s * lbda, s], [-l * lbda, 1]])
+
+
+def nonreciprocal_subwavelength_propagation_matrix_single(
+    l: int | float,
+    s: int | float,
+    gamma: int | float,
+    lbda: int | float,
+    symmetrised=True,
+) -> np.ndarray:
+    def f(z): return z / (1-np.exp(-z))
+    P = np.array([[1-l*s*lbda/f(gamma*l), np.exp(-gamma*l)*s],
+                  [-l*lbda/f(gamma*l), np.exp(-gamma*l)]])
+    if symmetrised:
+        P = np.exp(gamma * l / 2) * P
+    return P
 
 
 def propagation_matrix_single(
@@ -65,7 +80,7 @@ def propagation_matrix_single(
 
 
 def propagation_matrix_block(
-    block: Tuple[List[int | float]],
+    block: Tuple[Tuple[int | float]],
     k: int | float,
     delta: int | float = 1e-3,
     subwavelength: bool = True,
@@ -75,6 +90,18 @@ def propagation_matrix_block(
     for i in range(len(ll)):
         mat = propagation_matrix_single(
             ll[i], ss[i], k, delta, subwavelength) @ mat
+    return mat
+
+
+def propagation_matrix_nonreciprocal_block(
+    block: Tuple[Tuple[int | float]],
+    k: int | float,
+) -> np.ndarray:
+    mat = np.eye(2)
+    ll, ss, gamma = block
+    for i in range(len(ll)):
+        mat = nonreciprocal_subwavelength_propagation_matrix_single(
+            ll[i], ss[i], gamma[i], k) @ mat
     return mat
 
 
