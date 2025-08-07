@@ -96,12 +96,13 @@ def propagation_matrix_block(
 def propagation_matrix_nonreciprocal_block(
     block: Tuple[Tuple[int | float]],
     k: int | float,
+    symmetrised: bool = True,
 ) -> np.ndarray:
     mat = np.eye(2)
     ll, ss, gamma = block
     for i in range(len(ll)):
         mat = nonreciprocal_subwavelength_propagation_matrix_single(
-            ll[i], ss[i], gamma[i], k) @ mat
+            ll[i], ss[i], gamma[i], k, symmetrised=symmetrised) @ mat
     return mat
 
 

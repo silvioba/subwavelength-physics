@@ -115,7 +115,7 @@ def get_metaatom_solutions(bulk_block, defect_block, metaatom, d=10, midgap=1.5)
         [0]*d+list(metaatom)+[0]*d,
         v_in=1, v_out=1
     )
-    D = dp_dirichlet.compute_spectral_range_capacitance_matrix()
+    D, _ = dp_dirichlet.compute_spectral_range_capacitance_matrix()
     return list(D[D > midgap])
 
 
@@ -166,3 +166,53 @@ def generate_metaatoms(max_len, max_bulk):
                 metaatoms.append(tuple([1]+list(ma)+[1, 0]))
 
     return metaatoms
+
+
+def split_sequence(sequence: List[int], cut_length=3):
+    subseqs = []
+    i = 0
+    start = 0
+    while i < len(sequence):
+        # If we encounter a zero, check for a long run
+        if sequence[i] == 0:
+            zero_start = i
+            while i < len(sequence) and sequence[i] == 0:
+                i += 1
+            zero_count = i - zero_start
+
+            # If the run is long enough to cut
+            if zero_count >= cut_length:
+                # Add the subsequence before this run (if any)
+                if start < zero_start:
+                    subseqs.append(sequence[start:zero_start])
+                # The next subsequence starts after this run
+                start = i
+        else:
+            i += 1
+
+    # Add the final subsequence if there's anything left
+    if start < len(sequence):
+        subseqs.append(sequence[start:])
+
+    return subseqs
+
+
+def get_splitting_spectrum(sequence: List[int],
+                           bulk_block: Tuple[Tuple[int | float]] = None,
+                           defect_block: Tuple[Tuple[int | float]] = None,
+                           cut_length=3,
+                           d=5,
+                           midgap=1.5,):
+    if not bulk_block:
+        bulk_block = ((2,), (2,))
+
+    if not defect_block:
+        defect_block = ((1, 1), (1, 2))
+
+    subseqs = split_sequence(sequence, cut_length=cut_length)
+    D_calc = []
+    for sseq in subseqs:
+        ds = get_metaatom_solutions(
+            bulk_block, defect_block, tuple(sseq), d=d, midgap=midgap)
+        D_calc.extend(ds)
+    return D_calc
