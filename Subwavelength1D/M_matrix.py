@@ -7,7 +7,8 @@ from Subwavelength1D.swp import (
 
 import Utils.utils_general as utils
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 

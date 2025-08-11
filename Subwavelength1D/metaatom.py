@@ -12,7 +12,9 @@ from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
 from functools import cache
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
+
 import itertools
 
 from Utils.settings import settings as settings

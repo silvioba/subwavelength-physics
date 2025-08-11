@@ -16,7 +16,8 @@ import Subwavelength1D.swp as swp
 import Subwavelength1D.classic as classic
 import Subwavelength1D.disordered as disordered
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 from tqdm import tqdm
