@@ -19,7 +19,8 @@ import Subwavelength1D.disordered as disordered
 from Subwavelength1D.metaatom import *
 from Subwavelength1D.quasiperiodic import *
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 from tqdm import tqdm
