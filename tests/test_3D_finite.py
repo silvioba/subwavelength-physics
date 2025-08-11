@@ -1,0 +1,250 @@
+import unittest
+import numpy as np
+from parameterized import parameterized
+
+from Subwavelength3D.classic_finite import (
+    ClassicFiniteFWP3D,
+    flat_index,
+)
+
+
+class CapacitanceMatrixConstruction(unittest.TestCase):
+
+    @parameterized.expand([[0, 1], [0, 5], [2, 1], [3, 5], [3, 1], [3, 2]])
+    def test_get_S_index_continuity(self, N, L):
+        total_number_base_functions = L**2
+
+        total = total_number_base_functions * N
+        all_indices = []
+        for n in range(N):
+            for l in range(L):
+                for m in range(-l, l + 1):
+                    # print(n, L, l, m, "-->", get_S_index(n=n, L=L, l=l, m=m))
+                    all_indices.append(flat_index(n=n, L=L, l=l, m=m))
+        np.testing.assert_array_equal(np.arange(total), np.array(all_indices))
+
+    @parameterized.expand([[2, 1], [3, 5], [3, 2], [3, 1]])
+    def test_get_S_index_upper_bound(self, N, L):
+        total_number_base_functions = L**2
+
+        total = total_number_base_functions * N
+        sima = 0
+        for n in range(N):
+            for l in range(L):
+                for m in range(-l, l + 1):
+                    si = flat_index(n=n, L=L, l=l, m=m)
+                    self.assertGreaterEqual(si, 0)
+                    self.assertLess(si, total)
+                    sima = max(sima, si)
+        self.assertEqual(sima, total - 1)
+
+
+class ColinearCapacitanceMatrix(unittest.TestCase):
+
+    @parameterized.expand(
+        [
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-5,
+                1,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-5,
+                2,
+            ],
+        ],
+    )
+    def test_diagonally_dominant(self, centers, radii, k0, N_multipole):
+        C = ClassicFiniteFWP3D(
+            centers=centers, radii=radii, k0=k0
+        ).get_capacitance_matrix(N_multipole=N_multipole)
+        for i in range(C.shape[0]):
+            self.assertGreater(
+                C[i, i].real, 0, f"Diagonal element ({i}, {i}) is not positive"
+            )
+            for j in range(C.shape[1]):
+                if i != j:
+                    self.assertLess(
+                        C[i, j].real,
+                        0,
+                        f"Off-Diagonal element ({i}, {j}) is not negative",
+                    )
+            self.assertGreater(
+                C[i, i],
+                np.sum(np.abs(C[i, :])) - C[i, i],
+                "Matrix is not diagonally dominant",
+            )
+
+    @parameterized.expand(
+        [
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-5,
+                1,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-5,
+                2,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-9,
+                2,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-9,
+                2,
+            ],
+        ],
+    )
+    def test_hermitian(self, centers, radii, k0, N_multipole):
+        C = ClassicFiniteFWP3D(
+            centers=centers, radii=radii, k0=k0
+        ).get_capacitance_matrix(N_multipole=N_multipole)
+        np.testing.assert_allclose(
+            C, np.conj(C.T),
+            rtol=0, atol=100*k0,
+            err_msg="Capacitance matrix is not Hermitian"
+        )
+
+    @parameterized.expand(
+        [
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-5,
+                1,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-5,
+                2,
+            ],
+        ],
+    )
+    def test_caching(self, centers, radii, k0, N_multipole):
+        C_bruteforce = ClassicFiniteFWP3D(
+            centers=centers, radii=radii, k0=k0
+        ).get_capacitance_matrix(N_multipole=N_multipole, accelerated=False)
+        C_fast = ClassicFiniteFWP3D(
+            centers=centers, radii=radii, k0=k0
+        ).get_capacitance_matrix(N_multipole=N_multipole, accelerated=True)
+        np.testing.assert_allclose(
+            C_bruteforce, C_fast,
+            err_msg="Capacitance matrices from bruteforce and fast methods do not match",
+        )
+
+
+class NonColinearCapacitanceMatrix(unittest.TestCase):
+
+    @parameterized.expand(
+        [
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-6,
+                1,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-6,
+                2,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, 9]),
+                    np.array([0, 0, 20]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-6,
+                3,
+            ],
+            [
+                [
+                    np.array([0, 0, 1]),
+                    np.array([0, 0, 5]),
+                    np.array([0, 0, -9]),
+                    np.array([0, 0, -3]),
+                ],
+                np.array([1, 1, 1, 1]),
+                1e-6,
+                3,
+            ],
+        ],
+    )
+    def test_close_if_colinear(self, centers, radii, k0, N_multipole):
+        Ccol = ClassicFiniteFWP3D(
+            centers=centers, radii=radii, k0=k0
+        ).get_capacitance_matrix(N_multipole=N_multipole, accelerated=False, colinear=True)
+
+        Cnoncol = ClassicFiniteFWP3D(
+            centers=centers, radii=radii, k0=k0
+        ).get_capacitance_matrix(N_multipole=N_multipole, colinear=False)
+
+        np.testing.assert_allclose(
+            Ccol, Cnoncol,
+            err_msg="Capacitance matrices are not close in the colinear case",
+        )
