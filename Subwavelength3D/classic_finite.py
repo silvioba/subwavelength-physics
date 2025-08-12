@@ -81,10 +81,6 @@ def get_indicator_function_spherical_harmonics_expansion(N: int, N_multi: int, i
     return idx
 
 
-def estimate_time():
-    pass
-
-
 def cartesian_to_spherical(
     cartesian_coords: np.ndarray
 ) -> Tuple[float, float, float]:
@@ -143,6 +139,12 @@ def C_coefficient(l: int, m: int, lp: int, mp: int, lam: int, mu: int) -> float:
 
 @cache
 def A_coefficient_colinear(l: int, m: int, lp: int, mp: int, k: float, rb: float, max_lam: int):
+    """
+    A coefficent used for the addition theorem as presented on page 42 of [3] in the simplified version
+
+    Returns:
+        float
+    """
     A = 0
     for lam in range(max_lam):
         A += np.sqrt((2*lam+1)/(4*np.pi)) * C_coefficient(l,
@@ -152,6 +154,12 @@ def A_coefficient_colinear(l: int, m: int, lp: int, mp: int, k: float, rb: float
 
 @cache
 def A_coefficient_general(l: int, m: int, lp: int, mp: int, k: float, xb: float, max_lam: int):
+    """
+    A coefficent used for the addition theorem as presented on page 42 of [3] in the full version
+
+    Returns:
+        float
+    """
     rb, thetab, phib = cartesian_to_spherical(xb)
     A = 0
     for lam in range(max_lam):
@@ -383,14 +391,6 @@ class ClassicFiniteFWP3D(SWP3D):
                                     )
                                 else:
                                     if l == lp and m == mp:
-                                        # print(
-                                        #     i,
-                                        #     N_multipole,
-                                        #     l,
-                                        #     m,
-                                        #     "-->",
-                                        #     flat_index(i, N_multipole, l, m),
-                                        # )
                                         S[
                                             flat_index(i, N_multipole, l, m),
                                             flat_index(j, N_multipole, lp, mp),
@@ -561,22 +561,15 @@ class ClassicFiniteFWP3D(SWP3D):
             )
         C = np.zeros((self.N, self.N), dtype=complex)
 
-        # TODO: S should be symmetric in a classical system. Then we could use cholsesky
-        # TODO: test if LU would be better
-        Q, R = np.linalg.qr(S)
         for j in range(self.N):
             # Bug? Why are we setting all indicies of the masked block to one? Shouldnt it be just the first one because we the indicator function is constant
             # along the radius
             u_j = get_mask_block(N=self.N, N_multi=N_multipole, index=j)
             y = np.linalg.lstsq(S, u_j, rcond=None)[
                 0
-                # np.linalg.lstsq(S, u_j, rcond=None)[0]  # np.linalg.solve(R, Q.T @ u_j)
             ]
-            # plt.plot(y)
             for i in range(self.N):
                 u_i = get_mask_block(N=self.N, N_multi=N_multipole, index=i)
-                # print(i, j)
-                # print(u_i.T @ y)
                 C[i, j] = u_i.T @ y * (-4 * np.pi * self.radii[i] ** 2)
         return C
 
@@ -606,24 +599,11 @@ class ClassicFiniteFWP3D(SWP3D):
                 )
         C = np.zeros((self.N, self.N), dtype=complex)
 
-        # TODO: S should be symmetric in a classical system. Then we could use cholsesky
-        # TODO: test if LU would be better
-        Q, R = np.linalg.qr(S)
         for j in range(self.N):
-            # Bug? Why are we setting all indicies of the masked block to one? Shouldnt it be just the first one because we the indicator function is constant
-            # along the radius
-            # u_j = get_mask_block(N=self.N, N_multi=N_multipole, index=j)
-            # Fix?:
             u_j = get_indicator_function_spherical_harmonics_expansion(
                 N=self.N, N_multi=N_multipole, index=j)
-            y = np.linalg.lstsq(S, u_j, rcond=None)[
-                0
-                # np.linalg.lstsq(S, u_j, rcond=None)[0]  # np.linalg.solve(R, Q.T @ u_j)
-            ]
-            # plt.plot(y)
+            y = np.linalg.lstsq(S, u_j, rcond=None)[0]
             for i in range(self.N):
-                # print(i, j)
-                # print(u_i.T @ y)
                 C[i, j] = - np.sqrt(4 * np.pi) * \
                     self.radii[i]**2 * y[i*N_multipole**2]
         return C
