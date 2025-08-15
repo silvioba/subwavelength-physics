@@ -1,8 +1,12 @@
 import numpy as np
+import scipy as sci
 
 from mpmath import polylog
 from mpmath import mp
 from Subwavelength3D.swp import SWP3D
+import Subwavelength3D.fmm as fmm
+from Utils.settings import settings
+import Utils.utils_general as utils
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -99,8 +103,10 @@ def cartesian_to_spherical(
     """
     x, y, z = cartesian_coords
     r = np.sqrt(x**2 + y**2 + z**2)
-    theta = np.arccos(z / r) if r != 0 else 0
-    phi = np.arctan2(y, x)
+    # Polar angle
+    phi = np.arccos(z / r) if r != 0 else 0
+    # Azimuthal angle
+    theta = np.arctan2(y, x) if r != 0 else 0
     return r, theta, phi
 
 
@@ -132,7 +138,7 @@ def C_coefficient(l: int, m: int, lp: int, mp: int, lam: int, mu: int) -> float:
     Returns:
         float
     """
-    return (
+    return complex(
         (1j) ** (lp - l + lam)
         * (-1.0) ** m
         * np.sqrt(4 * np.pi * (2 * l + 1) * (2 * lp + 1) * (2 * lam + 1))
@@ -158,14 +164,15 @@ def A_coefficient_general(l: int, m: int, lp: int, mp: int, k: float, xb: float,
         for mu in range(-lam, lam + 1):
             A += C_coefficient(l,
                                m, lp, mp, lam, mu) * spherical_hl(lam, k*rb)*sph_harm(mu, lam, thetab, phib)
+    # assert np.allclose(A, A_coefficient_colinear(l, m, lp, mp, k, rb, max_lam))
     return A
 
 
 @cache
 def S_coefficient_offdiagonal(l: int, m: int, lp: int, mp: int, k: float, xb: float, Ri: float, Rj: float, max_lam: int):
-    ci = -1j * Ri**2 * k
+    c = -1j * Rj**2 * k
     return (
-        ci
+        c
         * A_coefficient_general(
             l=l, m=m, lp=lp, mp=mp, k=k, xb=xb, max_lam=max_lam
         )
@@ -176,120 +183,12 @@ def S_coefficient_offdiagonal(l: int, m: int, lp: int, mp: int, k: float, xb: fl
 
 @cache
 def S_coefficient_diagonal(l: int, m: int, k: float, Ri: float):
-    ci = -1j * Ri**2 * k
+    c = -1j * Ri**2 * k
     return (
-        ci
+        c
         * spherical_jn(l, k * Ri)
         * spherical_hl(l, k * Ri)
     )
-
-
-def precompute_C_and_A_coefficients_pairwise(
-    max_l: int, pairwise_distances: np.ndarray, k0: float
-):
-    """
-    Precomputes C_coefficients and A_coefficients only at the unique pairwise distances.
-
-    Args:
-        max_l (int): Maximum degree of spherical harmonics (l and lp).
-        pairwise_distances (np.ndarray): Unique pairwise distances where A_coefficients are needed.
-        k0 (float): Wavenumber used for scaling distances.
-
-    Returns:
-        tuple: (C_cache, A_cache)
-            - C_cache (np.ndarray): Precomputed C_coefficients, 6D array of shape
-              (max_l, 2*max_l+1, max_l, 2*max_l+1, 2*max_l, 2*max_l+1).
-            - A_cache (dict): Dictionary mapping distances to A_coefficients.
-              Keys are distances, and values are 4D numpy arrays of shape
-              (max_l, 2*max_l+1, max_l, 2*max_l+1).
-    """
-    # Precompute C_coefficients
-    C_cache = np.zeros(
-        (max_l, 2 * max_l + 1, max_l, 2 * max_l + 1, 2 * max_l, 2 * max_l + 1),
-        dtype=complex,
-    )
-    for l in range(max_l):
-        for m in range(-l, l + 1):
-            for lp in range(max_l):
-                for mp in range(-lp, lp + 1):
-                    for lam in range(abs(l - lp), l + lp + 1):
-                        for mu in range(-lam, lam + 1):
-                            C_cache[l, m + max_l, lp, mp + max_l, lam, mu +
-                                    max_l] = C_coefficient(l, m, lp, mp, lam, mu)
-
-    # Precompute A_coefficients for unique pairwise distances
-    unique_distances = np.unique(pairwise_distances)
-    A_cache = {}
-    for z in unique_distances:
-        if z < 1e-5:
-            A_cache[z] = 0
-            continue
-        A_array = np.zeros((max_l, 2 * max_l + 1, max_l,
-                           2 * max_l + 1), dtype=complex)
-        for l in range(max_l):
-            for m in range(-l, l + 1):
-                for lp in range(max_l):
-                    for mp in range(-lp, lp + 1):
-                        A = 0
-                        for lam in range(abs(l - lp), l + lp + 1):
-                            A += (
-                                np.sqrt((2 * lam + 1) / (4 * np.pi))
-                                * C_cache[l, m + max_l, lp, mp + max_l, lam, 0 + max_l]
-                                * spherical_hl(lam, k0 * z)
-                            )
-                        A_array[l, m + max_l, lp, mp + max_l] = A
-        A_cache[z] = A_array
-
-    return C_cache, A_cache
-
-
-@cache
-def _block_positions_and_lm_lists(L: int):
-    """
-    Precompute (and cache) positions within a multipole block and ordered (l,m) lists.
-
-    Returns
-    -------
-    pos : (L, 2L+1) int array
-        pos[l, m+L] -> position inside a block for (l,m); -1 if invalid.
-    l_list, m_idx_list : (L**2,) int arrays
-        Ordered lists of valid (l, m+L) pairs matching `pos[pos>=0]` order.
-    """
-    pos = -np.ones((L, 2*L + 1), dtype=np.int64)
-    l_list = []
-    m_idx_list = []
-    for l in range(L):
-        base = l*l
-        for m in range(-l, l+1):
-            p = base + (l + m)
-            pos[l, m + L] = p
-            l_list.append(l)
-            m_idx_list.append(m + L)
-    return pos, np.asarray(l_list, dtype=np.int64), np.asarray(m_idx_list, dtype=np.int64)
-
-
-@cache
-def _C_cache_general(L: int):
-    """
-    Precompute and cache C_coefficient(l,m,lp,mp,lam,mu) for 0<=l,lp,lam<L and
-    |m|<=l, |mp|<=lp, |mu|<=lam. Stored in an oversized zero array so that
-    array/tensor ops are easy and fast later on.
-
-    Shape: (L, 2L+1, L, 2L+1, L, 2L+1)
-           [ l,  m+L,   lp, mp+L,  lam, mu+L ]
-    """
-    C = np.zeros((L, 2*L+1, L, 2*L+1, L, 2*L+1), dtype=complex)
-    for l in range(L):
-        for m in range(-l, l+1):
-            mi = m + L
-            for lp in range(L):
-                for mp in range(-lp, lp+1):
-                    mpi = mp + L
-                    for lam in range(L):
-                        for mu in range(-lam, lam+1):
-                            C[l, mi, lp, mpi, lam, mu +
-                                L] = C_coefficient(l, m, lp, mp, lam, mu)
-    return C
 
 
 class ClassicFiniteFWP3D(SWP3D):
@@ -329,7 +228,7 @@ class ClassicFiniteFWP3D(SWP3D):
         return cls(radii=np.ones(N) * r, centers=centers, **params)
 
     def compute_colinear_single_layer_potential_matrix_bruteforce(
-        self, N_multipole: int
+        self, N_multipole: int, k0: float = 1e-6
     ) -> np.ndarray:
         """
         Computes the discrete approximation of the single layer potential matrix
@@ -367,19 +266,19 @@ class ClassicFiniteFWP3D(SWP3D):
                             for mp in range(-lp, lp + 1):
                                 if i != j:
                                     rp = np.linalg.norm(
-                                        self.centers[i] - self.centers[j]
+                                        self.centers[j] - self.centers[i]
                                     )
                                     S[
                                         flat_index(i, N_multipole, l, m),
                                         flat_index(j, N_multipole, lp, mp),
                                     ] = (
-                                        c[i]
-                                        * self.k0
+                                        c[j]
+                                        * k0
                                         * A_coefficient_colinear(
-                                            l=l, m=m, lp=lp, mp=mp, k=self.k0, rb=rp, max_lam=N_multipole
+                                            l=l, m=m, lp=lp, mp=mp, k=k0, rb=rp, max_lam=N_multipole
                                         )
-                                        * spherical_jn(lp, self.k0 * self.radii[j])
-                                        * spherical_jn(l, self.k0 * self.radii[i])
+                                        * spherical_jn(lp, k0 * self.radii[j])
+                                        * spherical_jn(l, k0 * self.radii[i])
                                     )
                                 else:
                                     if l == lp and m == mp:
@@ -395,94 +294,15 @@ class ClassicFiniteFWP3D(SWP3D):
                                             flat_index(i, N_multipole, l, m),
                                             flat_index(j, N_multipole, lp, mp),
                                         ] = (
-                                            c[i]
-                                            * self.k0
-                                            * spherical_hl(l, self.radii[i] * self.k0)
-                                            * spherical_jn(l, self.radii[i] * self.k0)
+                                            c[j]
+                                            * k0
+                                            * spherical_hl(l, self.radii[i] * k0)
+                                            * spherical_jn(l, self.radii[i] * k0)
                                         )
         return S
 
-    def compute_colinear_single_layer_potential_matrix(self, N_multipole: int) -> np.ndarray:
-        """
-        Computes the discrete approximation of the single layer potential matrix
-
-        Args:
-            N_multipole (int): Number of multipole to use
-
-        Raises:
-            NotImplementedError: Currently the formula works only for chain of resonators on the z-Axis
-
-        Returns:
-            np.ndarray: a N_multipole**2 * self.N array composed of self.N blocks representing the single layer potential. This is the matrix at the bottom of page 43 [3]
-        """
-
-        c = -1j * self.radii**2
-
-        N = self.N
-        L = N_multipole
-        S_size = N * L**2  # Size of the flattened matrix
-        S = np.zeros((S_size, S_size), dtype=complex)  # Dense matrix
-
-        # Convert self.centers from a list of (1, 3) arrays to a numpy array of shape (N, 3)
-        centers_array = np.squeeze(np.array(self.centers))  # Shape (N, 3)
-
-        # Compute pairwise distances using broadcasting
-        pairwise_distances = np.linalg.norm(
-            centers_array[:, None, :] - centers_array[None, :, :], axis=-1
-        )
-
-        # Precompute coefficients
-        C_cache, A_cache = precompute_C_and_A_coefficients_pairwise(
-            L, pairwise_distances, self.k0
-        )
-
-        # Precompute spherical Bessel and Hankel functions for radii
-        precomputed_jn = {
-            r: {l: spherical_jn(l, r * self.k0) for l in range(L)} for r in self.radii
-        }
-        precomputed_hl = {
-            r: {l: spherical_hl(l, r * self.k0) for l in range(L)} for r in self.radii
-        }
-
-        for i in range(N):
-            for j in range(N):
-                if i == j:
-                    # Diagonal terms (self-interaction)
-                    for l in range(L):
-                        for m in range(-l, l + 1):
-                            idx = flat_index(i, L, l, m)
-                            S[idx, idx] = (
-                                c[i]
-                                * self.k0
-                                * precomputed_hl[self.radii[i]][l]
-                                * precomputed_jn[self.radii[i]][l]
-                            )
-                else:
-                    # Use precomputed A_cache for pairwise distance
-                    d = pairwise_distances[i, j]
-                    A_array = A_cache[d]
-                    for l in range(L):
-                        for m in range(-l, l + 1):
-                            for lp in range(L):
-                                for mp in range(-lp, lp + 1):
-                                    idx_i = flat_index(i, L, l, m)
-                                    idx_j = flat_index(j, L, lp, mp)
-
-                                    # Use precomputed A coefficient
-                                    A_value = A_array[l, m + L, lp, mp + L]
-
-                                    # Update matrix value
-                                    S[idx_i, idx_j] = (
-                                        c[i]
-                                        * self.k0
-                                        * A_value
-                                        * precomputed_jn[self.radii[i]][l]
-                                    )
-
-        return S
-
     def compute_general_single_layer_potential_matrix(
-        self, N_multipole: int
+        self, N_multipole: int, k0: float = 1e-6
     ) -> np.ndarray:
         """
         Computes the discrete approximation of the single layer potential matrix for general spheres not necessarily on the z-axis.
@@ -525,213 +345,100 @@ class ClassicFiniteFWP3D(SWP3D):
                                         m=m,
                                         lp=lp,
                                         mp=mp,
-                                        k=self.k0,
+                                        k=k0,
                                         xb=tuple(
-                                            self.centers[i]-self.centers[j]),
+                                            self.centers[j]-self.centers[i]),
                                         Ri=self.radii[i],
                                         Rj=self.radii[j],
-                                        max_lam=N_multipole
+                                        max_lam=N_multipole+1
                                     )
                                 else:
                                     if l == lp and m == mp:
                                         S[
                                             flat_index(i, N_multipole, l, m),
                                             flat_index(j, N_multipole, lp, mp),
-                                        ] = S_coefficient_diagonal(l=l, m=m, k=self.k0, Ri=self.radii[i])
+                                        ] = S_coefficient_diagonal(l=l, m=m, k=k0, Ri=self.radii[i])
         return S
 
-    def get_capacitance_matrix_old(self, N_multipole=1, use_bruteforce=True, colinear=True) -> np.ndarray:
+    def _compute_capactance_matrix_classical(self, N_multipole, colinear, k0=1e-6) -> np.ndarray:
         if colinear:
             for c in self.centers:
                 if sum(np.abs(c[:2])) > 0:
                     raise ValueError(
                         "Sphere centers must be colinear along the z-axis for colinear single layer potential matrix computation."
                     )
-            if use_bruteforce:
-                S = self.compute_colinear_single_layer_potential_matrix_bruteforce(
-                    N_multipole=N_multipole
-                )
-            else:
-                S = self.compute_colinear_single_layer_potential_matrix(
-                    N_multipole=N_multipole
-                )
-        else:
-            raise NotImplementedError(
-                "Non-colinear single layer potential matrix computation is not implemented yet."
+
+            S = self.compute_colinear_single_layer_potential_matrix_bruteforce(
+                N_multipole=N_multipole
             )
-        C = np.zeros((self.N, self.N), dtype=complex)
-
-        # TODO: S should be symmetric in a classical system. Then we could use cholsesky
-        # TODO: test if LU would be better
-        Q, R = np.linalg.qr(S)
-        for j in range(self.N):
-            # Bug? Why are we setting all indicies of the masked block to one? Shouldnt it be just the first one because we the indicator function is constant
-            # along the radius
-            u_j = get_mask_block(N=self.N, N_multi=N_multipole, index=j)
-            y = np.linalg.lstsq(S, u_j, rcond=None)[
-                0
-                # np.linalg.lstsq(S, u_j, rcond=None)[0]  # np.linalg.solve(R, Q.T @ u_j)
-            ]
-            # plt.plot(y)
-            for i in range(self.N):
-                u_i = get_mask_block(N=self.N, N_multi=N_multipole, index=i)
-                # print(i, j)
-                # print(u_i.T @ y)
-                C[i, j] = u_i.T @ y * (-4 * np.pi * self.radii[i] ** 2)
-        return C
-
-    def get_capacitance_matrix(self, N_multipole=1, accelerated=False, colinear=True) -> np.ndarray:
-        if colinear:
-            for c in self.centers:
-                if sum(np.abs(c[:2])) > 0:
-                    raise ValueError(
-                        "Sphere centers must be colinear along the z-axis for colinear single layer potential matrix computation."
-                    )
-            if not accelerated:
-                S = self.compute_colinear_single_layer_potential_matrix_bruteforce(
-                    N_multipole=N_multipole
-                )
-            else:
-                S = self.compute_colinear_single_layer_potential_matrix(
-                    N_multipole=N_multipole
-                )
         else:
-            if not accelerated:
-                S = self.compute_general_single_layer_potential_matrix(
-                    N_multipole=N_multipole
-                )
-            else:
-                S = self.compute_fast_general_single_layer_potential_matrix(
-                    N_multipole=N_multipole
-                )
-        C = np.zeros((self.N, self.N), dtype=complex)
+            S = self.compute_general_single_layer_potential_matrix(
+                N_multipole=N_multipole
+            )
 
-        # TODO: S should be symmetric in a classical system. Then we could use cholsesky
-        # TODO: test if LU would be better
-        Q, R = np.linalg.qr(S)
+        C = np.zeros((self.N, self.N), dtype=complex)
         for j in range(self.N):
-            # Bug? Why are we setting all indicies of the masked block to one? Shouldnt it be just the first one because we the indicator function is constant
-            # along the radius
-            # u_j = get_mask_block(N=self.N, N_multi=N_multipole, index=j)
-            # Fix?:
             u_j = get_indicator_function_spherical_harmonics_expansion(
                 N=self.N, N_multi=N_multipole, index=j)
-            y = np.linalg.lstsq(S, u_j, rcond=None)[
-                0
-                # np.linalg.lstsq(S, u_j, rcond=None)[0]  # np.linalg.solve(R, Q.T @ u_j)
-            ]
-            # plt.plot(y)
+            y = np.linalg.solve(S, u_j)
             for i in range(self.N):
-                # print(i, j)
-                # print(u_i.T @ y)
                 C[i, j] = - np.sqrt(4 * np.pi) * \
                     self.radii[i]**2 * y[i*N_multipole**2]
-        return C
+        return np.real(C)
 
-    def get_generalised_capacitance_matrix(self) -> np.ndarray:
-        pass
+    def get_capacitance_matrix(
+            self,
+            N_multipole=2,
+            method: Literal['fmm', 'colinear', 'general'] = 'fmm',
+            k0=1e-6,
+            eps=1e-3,
+            N_jobs=12
+    ) -> np.ndarray:
+        if method == 'colinear':
+            return self._compute_capactance_matrix_classical(
+                N_multipole=N_multipole, colinear=True, k0=k0)
+        elif method == 'general':
+            return self._compute_capactance_matrix_classical(
+                N_multipole=N_multipole, colinear=False, k0=k0)
+        elif method == 'fmm':
+            assert N_multipole <= 2, "FMM method only supports up to dipole (N_multipole=2)"
+            dipole = (N_multipole == 2)
+            return fmm.compute_capacitance_matrix_accelerated(
+                self.centers, self.radii, eps=eps, dipole=dipole, n_jobs=N_jobs
+            )
+        else:
+            raise ValueError(f"Unknown method: {method}")
 
-    def compute_fast_general_single_layer_potential_matrix(self, N_multipole: int) -> np.ndarray:
-        """
-        Accelerated version of `compute_general_single_layer_potential_matrix`.
+    def get_generalised_capacitance_matrix(self,
+                                           N_multipole=2,
+                                           method: Literal['fmm',
+                                                           'colinear', 'general'] = 'fmm',
+                                           k0=1e-6,
+                                           eps=1e-3,
+                                           N_jobs=12) -> np.ndarray:
+        return self.get_material_matrix() @ self.get_capacitance_matrix(N_multipole=N_multipole, method=method, k0=k0, eps=eps, N_jobs=N_jobs)
 
-        Key ideas:
-        - Precompute and cache all C-coefficients once for the given L.
-        - For each pair (i,j), build the geometry tensor B_{lam,mu} = h_lam(k r_ij) * Y^mu_lam(\theta_ij, \phi_ij)
-        and contract A = sum_{lam,mu} C * B via a single tensordot.
-        - Assemble each (i,j) block in a fully vectorized way using precomputed
-        block positions and (l,m) index lists.
+    @override
+    def compute_sorted_eigs_capacitance_matrix(
+        self,
+        eigenvalues_only=False,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+        **kwargs
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        Vinv = self.get_material_matrix(inverted=True)
+        C = self.get_capacitance_matrix(**kwargs)
 
-        It reproduces the original summation (lam = 0..L-1), including the
-        sph_harm argument order used in the reference implementation.
-        """
-        L = N_multipole
-        N = self.N
-        k = self.k0
+        if eigenvalues_only:
+            D = sci.linalg.eigh(C, b=Vinv, eigvals_only=True)
+        else:
+            D, S = sci.linalg.eigh(C, b=Vinv)
 
-        # Sizes
-        block_size = L**2
-        S = np.zeros((N*block_size, N*block_size), dtype=complex)
-
-        # Cached combinatorial coefficients
-        C_cache = _C_cache_general(L)
-
-        # Cached block layout and ordered (l,m) pairs
-        pos, l_list, m_idx_list = _block_positions_and_lm_lists(L)
-        lp_list = l_list  # same ordering for columns
-        mp_idx_list = m_idx_list
-
-        # Radii-dependent factors
-        radii = np.asarray(self.radii, dtype=float)
-        ci = (-1j) * (radii**2) * k
-
-        jn_vals = np.empty((N, L), dtype=complex)
-        hl_vals = np.empty((N, L), dtype=complex)
-        for i in range(N):
-            kr = k * radii[i]
-            for l in range(L):
-                jn_vals[i, l] = spherical_jn(l, kr)
-                hl_vals[i, l] = spherical_hl(l, kr)
-
-        # Centers and pairwise vectors
-        centers = np.squeeze(np.array(self.centers, dtype=float))  # (N,3)
-        diff = centers[:, None, :] - centers[None, :, :]           # (N,N,3)
-        x = diff[..., 0]
-        y = diff[..., 1]
-        z = diff[..., 2]
-        rb = np.sqrt(x*x + y*y + z*z)
-        with np.errstate(invalid='ignore', divide='ignore'):
-            thetab = np.where(rb > 0, np.arccos(z / rb),
-                              0.0)  # polar (colatitude)
-        phib = np.arctan2(y, x)                                # azimuth
-
-        # Assemble blocks
-        for i in range(N):
-            i0 = i * block_size
-            for j in range(N):
-                j0 = j * block_size
-                if i == j:
-                    # Diagonal (self-interaction): only (l,m) == (lp,mp)
-                    for l in range(L):
-                        factor = ci[i] * jn_vals[i, l] * hl_vals[i, l]
-                        base = l*l
-                        for m in range(-l, l+1):
-                            p = base + (l + m)
-                            S[i0 + p, j0 + p] = factor
-                else:
-                    # Geometry tensor B[lam, mu+L]
-                    Bij = np.zeros((L, 2*L + 1), dtype=complex)
-                    krb = k * rb[i, j]
-                    # Precompute h_lam(krb)
-                    hvec = np.array([spherical_hl(lam, krb)
-                                    for lam in range(L)], dtype=complex)
-                    tb = thetab[i, j]
-                    pb = phib[i, j]
-                    for lam in range(L):
-                        h = hvec[lam]
-                        for mu in range(-lam, lam+1):
-                            # NOTE: We intentionally reproduce the original call order
-                            # sph_harm(mu, lam, thetab, phib)
-                            Bij[lam, mu + L] = h * sph_harm(mu, lam, tb, pb)
-
-                    # A(l,m,lp,mp) = sum_{lam,mu} C * B
-                    A = np.tensordot(C_cache, Bij, axes=(
-                        [4, 5], [0, 1]))  # (L,2L+1,L,2L+1)
-
-                    # Extract valid (l,m) and (lp,mp) entries in block order
-                    A_sub = A[l_list[:, None], m_idx_list[:, None],
-                              # (L^2, L^2)
-                              lp_list[None, :], mp_idx_list[None, :]]
-
-                    # Row/col indices in the big matrix
-                    rows = i0 + pos[pos >= 0]
-                    cols = j0 + pos[pos >= 0]
-
-                    # Multiplicative factors jn(l,kRi) * jn(lp,kRj)
-                    F = (ci[i] * jn_vals[i, l_list])[:, None] * \
-                        jn_vals[j, lp_list][None, :]
-
-                    # Write the whole block in one shot
-                    S[np.ix_(rows, cols)] = A_sub * F
-
-        return S
+        D, S = utils.sort_by_method(D, S, sorting)
+        return D, S
