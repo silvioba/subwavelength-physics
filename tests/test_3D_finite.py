@@ -89,6 +89,9 @@ class ColinearCapacitanceMatrix(unittest.TestCase):
         ],
     )
     def test_diagonally_dominant(self, centers, radii, N_multipole):
+        """
+        Checks that the capacitance matrix is diagonally dominant
+        """
         C = ClassicFiniteFWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method='general')
@@ -154,6 +157,9 @@ class ColinearCapacitanceMatrix(unittest.TestCase):
         ],
     )
     def test_hermitian(self, centers, radii, N_multipole):
+        """
+        Checks that the capacitance matrix is hermitian
+        """
         C = ClassicFiniteFWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method='general')
@@ -269,6 +275,11 @@ class ConsistencyTests(unittest.TestCase):
         ],
     )
     def test_colinear_and_general_consistent(self, centers, radii, N_multipole):
+        """
+        Checks that the capacitance matrix for a chain of resonators computed with the
+        colinear simplification is the same as when this semplification is not used
+
+        """
         dp = ClassicFiniteFWP3D(
             centers=centers, radii=radii
         )
@@ -370,6 +381,9 @@ class ConsistencyTests(unittest.TestCase):
         ]
     )
     def test_symmetry_consistency(self, c1, c2, N_multipole):
+        """
+        Checks that if a system is rotated or mirrored in space the capacitance matrix remains the same
+        """
         N = len(c1)
         radii = np.ones(N)
         d1 = ClassicFiniteFWP3D(
@@ -486,6 +500,10 @@ class ConsistencyTests(unittest.TestCase):
         ]
     )
     def test_permutation_consistency(self, centers, radii, permutation, N_multipole):
+        """
+        Checks that if the index of some resonator is permuted then the matrix 
+        associated to that permutation creates a similarity transformation between matrices
+        """
         d1 = ClassicFiniteFWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method="general")
@@ -567,6 +585,9 @@ class ConsistencyTests(unittest.TestCase):
         ]
     )
     def test_general_and_fmm_consistent(self, centers, radii, N_multipole):
+        """
+        Checks that the computaiton of the matrix using single layer potentials and using fmm is the same
+        """
         Cnoncol = np.real(ClassicFiniteFWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method="general"))
