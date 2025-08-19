@@ -85,10 +85,6 @@ def get_indicator_function_spherical_harmonics_expansion(N: int, N_multi: int, i
     return idx
 
 
-def estimate_time():
-    pass
-
-
 def cartesian_to_spherical(
     cartesian_coords: np.ndarray
 ) -> Tuple[float, float, float]:
@@ -149,6 +145,12 @@ def C_coefficient(l: int, m: int, lp: int, mp: int, lam: int, mu: int) -> float:
 
 @cache
 def A_coefficient_colinear(l: int, m: int, lp: int, mp: int, k: float, rb: float, max_lam: int):
+    """
+    A coefficent used for the addition theorem as presented on page 42 of [3] in the simplified version
+
+    Returns:
+        float
+    """
     A = 0
     for lam in range(max_lam):
         A += np.sqrt((2*lam+1)/(4*np.pi)) * C_coefficient(l,
@@ -158,6 +160,12 @@ def A_coefficient_colinear(l: int, m: int, lp: int, mp: int, k: float, rb: float
 
 @cache
 def A_coefficient_general(l: int, m: int, lp: int, mp: int, k: float, xb: float, max_lam: int):
+    """
+    A coefficent used for the addition theorem as presented on page 42 of [3] in the full version
+
+    Returns:
+        float
+    """
     rb, thetab, phib = cartesian_to_spherical(xb)
     A = 0
     for lam in range(max_lam):
@@ -282,14 +290,6 @@ class ClassicFiniteFWP3D(SWP3D):
                                     )
                                 else:
                                     if l == lp and m == mp:
-                                        # print(
-                                        #     i,
-                                        #     N_multipole,
-                                        #     l,
-                                        #     m,
-                                        #     "-->",
-                                        #     flat_index(i, N_multipole, l, m),
-                                        # )
                                         S[
                                             flat_index(i, N_multipole, l, m),
                                             flat_index(j, N_multipole, lp, mp),
