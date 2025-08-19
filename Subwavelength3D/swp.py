@@ -4,6 +4,20 @@ import copy
 from typing import Literal, Callable, Tuple, Self, List
 
 
+def _get_consistent_parameter(param, N):
+    if (
+        isinstance(param, float)
+        or isinstance(param, int)
+        or isinstance(param, complex)
+    ):
+        return (
+            np.ones(N, dtype=complex if isinstance(
+                param, complex) else float) * param
+        )
+    else:
+        return np.array(param, dtype=float).reshape((N,))  # (N,)
+
+
 class SWP3D:
     """
     Base class for a three-dimensional subwavelength problem
@@ -12,23 +26,14 @@ class SWP3D:
     def __init__(
         self,
         centers: List | np.ndarray,
-        radii: List | np.ndarray,
-        v_in: np.ndarray | float | int | complex = 1
+        radii: np.ndarray | List | float | int | complex = 1,
+        v_in: np.ndarray | List | float | int | complex = 1
     ):
         self.centers = np.array(centers).reshape((-1, 3))  # (N,3)
         self.N = len(centers)
-        self.radii = np.array(radii).reshape((self.N,))  # (N,)
-        self.v_in = v_in
 
-        if (
-            isinstance(v_in, float)
-            or isinstance(v_in, int)
-            or isinstance(v_in, complex)
-        ):
-            v_in = (
-                np.ones(self.N, dtype=complex if isinstance(
-                    v_in, complex) else float) * v_in
-            )
+        self.radii = _get_consistent_parameter(radii, self.N)  # (N,)
+        self.v_in = _get_consistent_parameter(v_in, self.N)  # (N,)
 
     def __str__(self):
         return f"Three Dimensional Finite system with {self.N} resonators.\nGeometry:     The first centers are {self.centers[:5]} and the first radii are {self.radii[:5]}."
