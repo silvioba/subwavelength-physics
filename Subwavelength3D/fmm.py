@@ -18,7 +18,7 @@ def _insulate(f):
     def f_insulated(x):
         x_s = np.squeeze(x)
         N = x_s.shape[0]
-        return np.reshape(f(np.squeeze(x)), (N, 1))
+        return np.reshape(f(x_s), (N, 1))
     return f_insulated
 
 
@@ -118,7 +118,7 @@ def compute_capacitance_matrix(centers, radii, eps=1e-3, dipole=False):
     return C
 
 
-def compute_capacitance_matrix_accelerated(centers, radii, eps=1e-3, dipole=False, n_jobs=12):
+def compute_capacitance_matrix_accelerated(centers, radii, eps=1e-3, dipole=False, n_jobs=12, verbose=False):
     """Fast capacitance matrix calculation using SciPy **CG**, Jacobi PC, and **joblib** parallel RHS.
 
     - Forms SPD system 	Tilde{S} = S*C (C = diag(1/r^2), repeated for dipoles)
@@ -146,6 +146,9 @@ def compute_capacitance_matrix_accelerated(centers, radii, eps=1e-3, dipole=Fals
                           S_tilde_diag, dtype=float)
 
     def compute_psi_j(j):
+        if verbose:
+            if j % 100 == 0:
+                print(f"Computing column {j}")
         chi_j = np.zeros(M)
         if not dipole:
             chi_j[j] = 1.0
