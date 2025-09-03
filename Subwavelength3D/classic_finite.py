@@ -397,22 +397,48 @@ class ClassicFiniteFWP3D(SWP3D):
             k0=1e-6,
             eps=1e-3,
             N_jobs=12,
-            verbose=False
+            verbose=False,
     ) -> np.ndarray:
-        if method == 'colinear':
-            return self._compute_capactance_matrix_classical(
-                N_multipole=N_multipole, colinear=True, k0=k0)
-        elif method == 'general':
-            return self._compute_capactance_matrix_classical(
-                N_multipole=N_multipole, colinear=False, k0=k0)
-        elif method == 'fmm':
-            assert N_multipole <= 2, "FMM method only supports up to dipole (N_multipole=2)"
-            dipole = (N_multipole == 2)
-            return fmm.compute_capacitance_matrix_accelerated(
-                self.centers, self.radii, eps=eps, dipole=dipole, n_jobs=N_jobs, verbose=verbose
-            )
+        parameters = {
+            "N_multipole": N_multipole,
+            "method": method,
+            "k0": k0,
+            "eps": eps
+        }
+
+        if self._capacitance_matrix is None or self._capacitance_matrix_parameters != parameters:
+            if verbose:
+                print("Computing capacitance matrix...")
+
+            if method == 'colinear':
+                C = self._compute_capactance_matrix_classical(
+                    N_multipole=N_multipole, colinear=True, k0=k0)
+            elif method == 'general':
+                C = self._compute_capactance_matrix_classical(
+                    N_multipole=N_multipole, colinear=False, k0=k0)
+            elif method == 'fmm':
+                assert N_multipole <= 2, "FMM method only supports up to dipole (N_multipole=2)"
+                dipole = (N_multipole == 2)
+                C = fmm.compute_capacitance_matrix_accelerated(
+                    self.centers, self.radii, eps=eps, dipole=dipole, n_jobs=N_jobs, verbose=verbose
+                )
+            else:
+                raise ValueError(f"Unknown method: {method}")
+
+            if self.cache_capacitance_matrix:
+                self._capacitance_matrix = C
+                self._capacitance_matrix_parameters = {
+                    "N_multipole": N_multipole,
+                    "method": method,
+                    "k0": k0,
+                    "eps": eps,
+                }
+
+            return C
         else:
-            raise ValueError(f"Unknown method: {method}")
+            if verbose:
+                print("Using cached capacitance matrix.")
+            return self._capacitance_matrix
 
     def get_generalised_capacitance_matrix(self, **kwargs) -> np.ndarray:
         return self.get_material_matrix() @ self.get_capacitance_matrix(**kwargs)
@@ -429,15 +455,10 @@ class ClassicFiniteFWP3D(SWP3D):
             "eve_abs",
             "eva_first_val",
         ] = "eva_real",
-        capacitance_matrix=None,
         **kwargs
     ) -> Tuple[np.ndarray, np.ndarray]:
         Vinv = self.get_material_matrix(inverted=True)
-
-        if capacitance_matrix is not None:
-            C = capacitance_matrix
-        else:
-            C = self.get_capacitance_matrix(**kwargs)
+        C = self.get_capacitance_matrix(**kwargs)
 
         if eigenvalues_only:
             D = sci.linalg.eigh(C, b=Vinv, eigvals_only=True)

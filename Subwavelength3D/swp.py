@@ -27,13 +27,18 @@ class SWP3D:
         self,
         centers: List | np.ndarray,
         radii: np.ndarray | List | float | int | complex = 1,
-        v_in: np.ndarray | List | float | int | complex = 1
+        v_in: np.ndarray | List | float | int | complex = 1,
+        cache_capacitance_matrix: bool = True,
     ):
         self.centers = np.array(centers).reshape((-1, 3))  # (N,3)
         self.N = len(centers)
 
         self.radii = _get_consistent_parameter(radii, self.N)  # (N,)
         self.v_in = _get_consistent_parameter(v_in, self.N)  # (N,)
+
+        self.cache_capacitance_matrix = cache_capacitance_matrix
+        self._capacitance_matrix = None
+        self._capacitance_matrix_parameters = None
 
     def __str__(self):
         return f"Three Dimensional Finite system with {self.N} resonators.\nGeometry:     The first centers are {self.centers[:5]} and the first radii are {self.radii[:5]}."
