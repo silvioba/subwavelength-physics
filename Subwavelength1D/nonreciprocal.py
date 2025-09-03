@@ -241,12 +241,12 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         return p
 
     def compute_propagation_matrix(
-        self, space_from_end: float = 1.0, regularised: bool = True
+        self, space_from_end: float = 1.0, symmetrised: bool = True
     ) -> np.ndarray:
         pm = np.eye(2)
         for j in range(self.N):
             p = self.get_resonator_propagation_matrix(
-                j=j, space_from_end=space_from_end, regularised=regularised)
+                j=j, space_from_end=space_from_end, symmetrised=symmetrised)
             pm = p @ pm
         return pm
 
@@ -346,7 +346,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
         return C
 
     @override
-    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
 
@@ -371,7 +371,7 @@ class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):
     ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
         def eig(alpha):
             if generalised:
-                mat = self.compute_generalised_capacitance_matrix()(alpha)
+                mat = self.get_generalised_capacitance_matrix()(alpha)
             else:
                 mat = self.get_capacitance_matrix()(alpha)
 
