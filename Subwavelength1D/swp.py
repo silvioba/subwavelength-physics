@@ -434,7 +434,7 @@ class PeriodicSWP1D(SWP1D):
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         raise NotImplementedError
 
-    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         raise NotImplementedError
 
     def compute_sorted_eigs_capacitance_matrix(

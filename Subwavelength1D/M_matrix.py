@@ -90,7 +90,7 @@ class PeriodicBandedMMatrix(PeriodicSWP1D):
         return C
 
     @override
-    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         return self.get_capacitance_matrix()
 
     @override

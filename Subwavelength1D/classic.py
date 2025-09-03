@@ -455,7 +455,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         return C
 
     @override
-    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
 
@@ -514,11 +514,11 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                 if generalised:
                     if eigenvalues_only:
                         D = np.linalg.eigvals(
-                            self.compute_generalised_capacitance_matrix()(alpha))
+                            self.get_generalised_capacitance_matrix()(alpha))
                         S = None
                     else:
                         D, S = np.linalg.eig(
-                            self.compute_generalised_capacitance_matrix()(alpha))
+                            self.get_generalised_capacitance_matrix()(alpha))
                 else:
                     if eigenvalues_only:
                         D = np.linalg.eigvalsh(
