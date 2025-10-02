@@ -33,7 +33,7 @@ def check_parameters_inconsistencies(fwp: FiniteSWP1D):
 
 
 class ClassicFiniteSWP1D(FiniteSWP1D):
-    """
+    FiniteSWP1D.__doc__ + """
     Base class for acoustic subwavelength wave problem. Subclass of OneDimensionalFiniteSWLProblem
 
     Initially modelled on [1] (see README), subsequently extended
