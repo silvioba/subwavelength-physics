@@ -5,3 +5,6 @@
 .DS_Store
 
 .vscode
+
+!Demos/1D.ipynb
+!Demos/3D.ipynb
