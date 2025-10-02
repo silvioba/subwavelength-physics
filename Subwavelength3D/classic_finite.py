@@ -199,7 +199,7 @@ def S_coefficient_diagonal(l: int, m: int, k: float, Ri: float):
     )
 
 
-class ClassicFiniteFWP3D(SWP3D):
+class ClassicFiniteSWP3D(SWP3D):
 
     def __init__(self, **pars):
         super().__init__(**pars)

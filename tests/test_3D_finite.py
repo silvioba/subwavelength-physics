@@ -3,7 +3,7 @@ import numpy as np
 from parameterized import parameterized
 
 from Subwavelength3D.classic_finite import (
-    ClassicFiniteFWP3D,
+    ClassicFiniteSWP3D,
     flat_index,
 )
 import Subwavelength3D.fmm as fmm
@@ -92,7 +92,7 @@ class ColinearCapacitanceMatrix(unittest.TestCase):
         """
         Checks that the capacitance matrix is diagonally dominant
         """
-        C = ClassicFiniteFWP3D(
+        C = ClassicFiniteSWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method='general')
         for i in range(C.shape[0]):
@@ -160,7 +160,7 @@ class ColinearCapacitanceMatrix(unittest.TestCase):
         """
         Checks that the capacitance matrix is hermitian
         """
-        C = ClassicFiniteFWP3D(
+        C = ClassicFiniteSWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method='general')
         np.testing.assert_allclose(
@@ -196,10 +196,10 @@ class ColinearCapacitanceMatrix(unittest.TestCase):
     #     ],
     # )
     # def test_caching(self, centers, radii, k0, N_multipole):
-    #     C_bruteforce = ClassicFiniteFWP3D(
+    #     C_bruteforce = ClassicFiniteSWP3D(
     #         centers=centers, radii=radii, k0=k0
     #     ).get_capacitance_matrix(N_multipole=N_multipole, accelerated=False)
-    #     C_fast = ClassicFiniteFWP3D(
+    #     C_fast = ClassicFiniteSWP3D(
     #         centers=centers, radii=radii, k0=k0
     #     ).get_capacitance_matrix(N_multipole=N_multipole, accelerated=True)
     #     np.testing.assert_allclose(
@@ -280,7 +280,7 @@ class ConsistencyTests(unittest.TestCase):
         colinear simplification is the same as when this semplification is not used
 
         """
-        dp = ClassicFiniteFWP3D(
+        dp = ClassicFiniteSWP3D(
             centers=centers, radii=radii
         )
 
@@ -386,11 +386,11 @@ class ConsistencyTests(unittest.TestCase):
         """
         N = len(c1)
         radii = np.ones(N)
-        d1 = ClassicFiniteFWP3D(
+        d1 = ClassicFiniteSWP3D(
             centers=c1, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method="general")
 
-        d2 = ClassicFiniteFWP3D(
+        d2 = ClassicFiniteSWP3D(
             centers=c2, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method="general")
 
@@ -504,13 +504,13 @@ class ConsistencyTests(unittest.TestCase):
         Checks that if the index of some resonator is permuted then the matrix 
         associated to that permutation creates a similarity transformation between matrices
         """
-        d1 = ClassicFiniteFWP3D(
+        d1 = ClassicFiniteSWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method="general")
 
         permuted_centers = np.array(centers)[permutation]
         permuted_radii = np.array(radii)[permutation]
-        d2 = ClassicFiniteFWP3D(
+        d2 = ClassicFiniteSWP3D(
             centers=permuted_centers, radii=permuted_radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method="general")
 
@@ -588,7 +588,7 @@ class ConsistencyTests(unittest.TestCase):
         """
         Checks that the computaiton of the matrix using single layer potentials and using fmm is the same
         """
-        Cnoncol = np.real(ClassicFiniteFWP3D(
+        Cnoncol = np.real(ClassicFiniteSWP3D(
             centers=centers, radii=radii
         ).get_capacitance_matrix(N_multipole=N_multipole, method="general"))
 
@@ -680,7 +680,7 @@ class ConsistencyTests(unittest.TestCase):
     def test_eigenvalue_calculation(self, centers, radii, v_in):
         N_multipole = 2
 
-        dp3 = ClassicFiniteFWP3D(
+        dp3 = ClassicFiniteSWP3D(
             centers=centers, radii=radii, v_in=v_in
         )
         V = dp3.get_material_matrix()
