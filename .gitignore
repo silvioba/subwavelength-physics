@@ -1,5 +1,6 @@
 *.ipynb
 *.pyc
+.env
 
 .venv
 .DS_Store

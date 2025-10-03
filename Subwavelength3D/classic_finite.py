@@ -205,7 +205,7 @@ class ClassicFiniteSWP3D(SWP3D):
         super().__init__(**pars)
 
     def __str__(self):
-        return super().__str__() + "\nPhysics:      Classic system"
+        return super().__str__() + "\nPhysics: Classic system"
 
     @classmethod
     def get_SSH(
@@ -234,6 +234,30 @@ class ClassicFiniteSWP3D(SWP3D):
 
         N = 4 * i + 1
         return cls(radii=np.ones(N) * r, centers=centers, **params)
+    
+    @classmethod
+    def get_chain(
+        cls, N: int, sep: float| int, radius: float | int, **params
+    ) -> Self:
+        """Create a chain of equally spaced resonators on a line
+
+        Args:
+            N (int): number of resonators
+            sep (float | int): the distance between the resonators 
+            radius (float | int): radius of the resonators
+
+            Remark that the distance between the centers of two neighbour resonators is given by sep + 2*radius
+
+        Returns:
+            Self: a chain of equally spaced resonators on a line placed on the x=0, y=0 plane
+        """
+
+        center_sep = sep + 2*radius
+
+        radii = np.array([radius]*N)
+        centers = np.array([[0, 0, z*center_sep] for z in range(N)])
+        return cls(radii=radii, centers=centers, **params)
+    
 
     def compute_colinear_single_layer_potential_matrix_bruteforce(
         self, N_multipole: int, k0: float = 1e-6

@@ -41,7 +41,7 @@ class SWP3D:
         self._capacitance_matrix_parameters = None
 
     def __str__(self):
-        return f"Three Dimensional Finite system with {self.N} resonators.\nGeometry:     The first centers are {self.centers[:5]} and the first radii are {self.radii[:5]}."
+        return f"Three Dimensional Finite system with {self.N} resonators.\nGeometry: The first centers are\n{self.centers[:5]}\nand the first radii are\n{self.radii[:5]}."
 
     def __repr__(self):
         return self.__str__()
