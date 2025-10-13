@@ -2,34 +2,86 @@
 
 === Introduction
 
-This project serves as code base for the research mainly based at ETH Zürich in the group of Prof. Dr H. Ammari.
+This project serves as code base for the research mainly based at ETH Zürich in the group of Prof. Dr H. Ammari and more recently at MIT.
 
-Maintainers of the 
-repository are:
+Maintainers of the repository are:
 
 .Maintainers
-* Silvio Barandun (silvio.barandun at sam.math.ethz.ch)
+* Silvio Barandun (barandun at mit.edu)
 * Alexander Uhlmann (alexander.uhlmann at sam.math.ethz.ch)
 
-=== Scientific backgrounds
-This code builds mainly on the following publications:
+=== FMM
+@auhlmann developed a great idea on how to make the 3D code faster using the fast multiple method (FMM). We build this into the v2 of the code. FMM needs a good library to run, which python does not provide out of the box. Here below you find a step-by-step guide on how to get this to work. The indications are for linux/ubuntu shell, but it should not be too different on other devices.
 
-One dimension::
-Finite systems::: [1] F. Feppon, Z. Cheng, and H. Ammari, “Subwavelength Resonances in One-Dimensional High-Contrast Acoustic Media,” SIAM Journal on Applied Mathematics, vol. 83, no. 2, pp. 625–665, Apr. 2023, doi: 10.1137/22m1503841.
+. Create a python3.11 virtual environment
++
+[source,shell]
+----
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install python3.11
+sudo apt install python3.11-venv
 
-Periodic systems::: [2] H. Ammari, S. Barandun, J. Cao, and F. Feppon, “Edge Modes in Subwavelength Resonators in One Dimension,” Multiscale Modeling &amp; Simulation, vol. 21, no. 3, pp. 964–992, Jul. 2023, doi: 10.1137/23m1549419.
+mkdir venv_fmm
+python3.11 -m venv venv_fmm
+source venv/bin/activate
+----
 
-Subsequent publications include
+. Navigate to the `subwavelength-physics` dir and run `pip install -r requirements.txt`
 
+. We use the Flat Iron Institute's FMM library (https://github.com/flatironinstitute/FMM3D) which has a python wrapper. You can download here https://github.com/flatironinstitute/FMM3D/releases/tag/v1.0.4 the v1.0.4 of the library and unzip it somewhere in your files.
+
+. If you do not have `gfortran` installed (i.e. if `which gfortran` does not return anything to your terminal) you need to install this via `sudo apt install gfortran`. We tested this with verion `GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0` which you can find out with `gfortran --version`
+
+. Now you will need to install the FMM library. Open a terminal inside of the unziped dir of step 3 and run `make install` (for other OS see the guide here: https://fmm3d.readthedocs.io/en/latest/install.html). If everything work you should be able to run `make test` successfully.
+
+. Now you need the python wrapper. To do this run `make python` from the same dir. You probably need also to run `sudo apt install python3.11-dev build-essential gfortran` before this step. Now you should be able to run `python python/test/test_hfmm.py`
 
 === Project Structure
 ----
-├─ Subwavelength1D          <- One dimensional systems
-|   ├─ classic.py           <- Classic wave propagation
-|   ├─ disordered.py        <- Subclass of classic with extra functions for disordered
-
-
+.
+├── Demos                                      # Notebooks that should help unserstand using the library
+│   ├── 1D.ipynb
+│   └── 3D.ipynb
+├── Subwavelength1D                            # 1D code
+│   ├── paper_plots                            # Scripts for plots
+│   ├── classic.py
+│   ├── disordered.py
+│   ├── exceptional_point.py
+│   ├── M_matrix.py
+│   ├── metaatom.py
+│   ├── nonreciprocal.py
+│   ├── quasiperiodic.py
+│   ├── simulation.py
+│   ├── swp.py
+│   └── time_modulated.py
+├── Subwavelength3D                             # 3D code
+│   ├── classic_finite.py
+│   ├── classic_periodic.py
+│   ├── fmm.py
+│   ├── swp.py
+│   └── theory.adoc
+├── tests
+│   ├── test_3D_finite.py
+│   ├── test_3D_periodic.py
+│   ├── test_classic.py
+│   ├── test_nonreciprocal.py
+│   └── test_utils.py
+├── Utils                                       # General function that may be usefull
+│   ├── plots_exploration.py
+│   ├── settings.py
+│   ├── tools.py
+│   ├── utils_general.py
+│   └── utils_propagation.py
+├── .gitignore
+├── bib.bib                                     # Refs to papers
+├── README.adoc
+└── requirements.txt
 ----
 
-=== Coding guidelines
+=== Scientific backgrounds
+This code builds on various publications. In the file `bib.bib`.
+
+=== Coding guidelines for contributions
 1. Use google docstrings
+2. We highly encourage to write tests for all parts of the code

@@ -1,18 +1,20 @@
 import numpy as np
+import scipy as sci
 from Subwavelength1D.swp import (
     FiniteSWP1D,
     PeriodicSWP1D,
 )
 
 
-import Subwavelength1D.utils_propagation as utils_propagation
+import Utils.utils_propagation as utils_propagation
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
 from matplotlib.axes import Axes
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 
@@ -31,7 +33,7 @@ def check_parameters_inconsistencies(fwp: FiniteSWP1D):
 
 
 class ClassicFiniteSWP1D(FiniteSWP1D):
-    """
+    FiniteSWP1D.__doc__ + """
     Base class for acoustic subwavelength wave problem. Subclass of OneDimensionalFiniteSWLProblem
 
     Initially modelled on [1] (see README), subsequently extended
@@ -40,8 +42,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
     def __init__(self, **pars):
         super().__init__(**pars)
 
-    def __str__(self):
-        return super().__str__() + "\nPhysics:      Classic system"
+    @override
+    def get_physics(self):
+        return "Classic"
 
     def set_params(self, **params):
 
@@ -80,6 +83,34 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         N = 4 * i + 1
         return cls(N=N, l=1, s=np.array(i * [s1, s2] + i * [s2, s1]), **params)
 
+    def __get_capacitance_diagonal(self) -> np.ndarray:
+        """
+        Computes the diagonal of the capacitance matrix C from eq (1.13) in [1]. Only depends on the spacings between resonators.
+
+        Returns:
+            np.ndarray
+        """
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
+        d1 = np.concatenate(
+            (
+                [1 / self.s[0]],
+                1 / self.s[:-1] + 1 / self.s[1:],
+                [1 / self.s[-1]],
+            )
+        )
+        return d1
+
+    def __get_capacitance_offdiagonal(self) -> np.ndarray:
+        """
+        Computes the off-diagonal of the capacitance matrix C from eq (1.13) in [1]. Only depends on the spacings between resonators.
+
+        Returns:
+            np.ndarray
+        """
+        assert self.N > 1, "N must be greater than 1 to compute capacitance matrix"
+        d2 = -1 / self.s
+        return d2
+
     @override
     def get_capacitance_matrix(self) -> np.ndarray:
         """
@@ -88,15 +119,8 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray
         """
-
-        d1 = np.concatenate(
-            (
-                [1 / self.s[0]],
-                1 / self.s[:-1] + 1 / self.s[1:],
-                [1 / self.s[-1]],
-            )
-        )
-        d2 = -1 / self.s
+        d1 = self.__get_capacitance_diagonal()
+        d2 = self.__get_capacitance_offdiagonal()
         C = np.diag(d1) + np.diag(d2, 1) + np.diag(d2, -1)
         return C
 
@@ -108,15 +132,202 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray:
         """
-        C = self.get_capacitance_matrix()
-        L = np.diag(1 / self.l)
-        V = np.diag(self.v_in)
-        return V**2 @ L @ C
+        return self.get_material_matrix() @ self.get_capacitance_matrix()
 
-    def get_greens_matrix(self, k):
+    @override
+    def get_periodized_system(self, sN=None):
+        """Get the periodized system of the disordered system by calculating s_N and converting the finite system into a periodic one.
+
+        Returns:
+            pwp: Periodized system
+        """
+        if sN is None:
+            raise ValueError(
+                "sN must be provided to convert the finite system into a periodic one"
+            )
+        pwp = convert_finite_into_periodic(self, sN)
+        return pwp
+
+    @override
+    def compute_sorted_eigs_capacitance_matrix(
+        self,
+        eigenvalues_only: bool = False,
+        generalised: bool = True,
+        hermitian_acceleration: bool = True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Computes the eigendecomposition of the capacitance matrix
+
+        Args:
+            eigenvalues_only (bool, optional): Compute only eigenvalues. Defaults to False.
+            generalised (bool, optional): Use the generalised capacitance matrix. Defaults to True.
+            hermitian_acceleration (bool, optional): Use acceleration in case of hermitian matrix. Defaults to True.
+            sorting (Literal[ &quot;eve_middle_localization&quot;, &quot;eve_localization&quot;, &quot;eva_real&quot;, &quot;eva_imag&quot;, &quot;eve_abs&quot;, &quot;eva_first_val&quot;, ], optional): _description_. Defaults to "eva_real".
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: matrix of eigenvalues , matrix of eigenvectors
+        """
+        if hermitian_acceleration:
+            if generalised:
+                Vl = self.get_material_matrix(
+                    inverted=False, perform_sqrt=True, return_only_list=True)
+                cdiag = self.__get_capacitance_diagonal()*(Vl**2)
+                coffdiag = self.__get_capacitance_offdiagonal()*(
+                    Vl[:-1]*Vl[1:])
+                if eigenvalues_only:
+                    D = sci.linalg.eigh_tridiagonal(
+                        cdiag, coffdiag, eigvals_only=True
+                    )
+                    S = None
+                else:
+                    D, St = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
+                    S = Vl.reshape(-1, 1) * St
+                    S = S / np.linalg.norm(S, axis=0)
+            else:
+                cdiag = self.__get_capacitance_diagonal()
+                coffdiag = self.__get_capacitance_offdiagonal()
+                if eigenvalues_only:
+                    D = sci.linalg.eigh_tridiagonal(
+                        cdiag, coffdiag, eigvals_only=True,
+                    )
+                    S = None
+                else:
+                    D, S = sci.linalg.eigh_tridiagonal(cdiag, coffdiag)
+        else:
+            if generalised:
+                D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
+            else:
+                D, S = np.linalg.eigh(self.get_capacitance_matrix())
+
+        D, S = utils.sort_by_method(D, S, sorting)
+        return D, S
+
+    def compute_spectral_range_capacitance_matrix(
+        self,
+        select='a',
+        select_range=None,
+        eigenvalues_only=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> np.ndarray:
+        """
+        Calculates the eigenvalues and optionally eigenvectors of the generalized capacitance matrix.
+
+        This function computes the eigenvalues and eigenvectors of the generalized capacitance matrix,
+        which is scaled by material properties. The computation is performed efficiently using
+        scipy's tridiagonal eigenvalue solver.
+
+            - 'v': Eigenvalues in the specified value range will be computed
+        eigenvalues_only : bool, default=True
+            If True, only eigenvalues are returned. If False, both eigenvalues and eigenvectors are returned.
+        sorting : str, default="eva_real"
+            Method for sorting eigenvalues and eigenvectors:
+            - "eve_middle_localization": Sort by eigenvector localization at the middle of the domain
+            - "eve_localization": Sort by eigenvector localization
+            - "eva_real": Sort by real part of eigenvalues
+            - "eva_imag": Sort by imaginary part of eigenvalues
+            - "eve_abs": Sort by absolute value of eigenvectors
+            - "eva_first_val": Sort by first value of eigenvalues
+
+        tuple or np.ndarray
+            If eigenvalues_only=True, returns np.ndarray of eigenvalues.
+            If eigenvalues_only=False, returns a tuple (D, S) where:
+                - D: np.ndarray of eigenvalues
+                - S: np.ndarray of eigenvectors, normalized and properly scaled
+
+        The generalized capacitance matrix is constructed by scaling the regular capacitance matrix
+        with material properties. The eigenvalues and eigenvectors are computed using 
+        scipy.linalg.eigh_tridiagonal for efficiency, as the capacitance matrix has a tridiagonal structure.
+
+        The eigenvectors are scaled by the material properties and then normalized.
+        """
+
+        Vl = self.get_material_matrix(
+            inverted=False, perform_sqrt=True, return_only_list=True)
+        cdiag = self.__get_capacitance_diagonal()*(Vl**2)
+        coffdiag = self.__get_capacitance_offdiagonal()*(
+            Vl[:-1]*Vl[1:])
+        if eigenvalues_only:
+            D = sci.linalg.eigh_tridiagonal(
+                cdiag, coffdiag, eigvals_only=True,
+                select=select, select_range=select_range
+            )
+            S = None
+        else:
+            D, St = sci.linalg.eigh_tridiagonal(
+                cdiag, coffdiag, eigvals_only=False,
+                select=select, select_range=select_range
+            )
+            S = Vl.reshape(-1, 1) * St
+            S = S / np.linalg.norm(S, axis=0)
+
+        D, S = utils.sort_by_method(D, S, sorting)
+        return D, S
+
+    def compute_greens_matrix(self, k: float):
+        """Computes the green Matrix / descrete green function
+
+        Computes C - k*id
+
+        Args:
+            k (float): see description
+
+        Returns:
+            np.array: descrete green function
+        """
         return np.linalg.inv(
             self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
         )
+
+    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, subwavelength: bool = True):
+        """
+        Computes the propagation matrix for a single resonator.
+
+        Args:
+            j (int): The index of the resonator.
+            space_from_end (float, optional): The spacing from the last resonator to the end of the domain. Defaults to 1.0.
+            subwavelength (bool, optional): Whether to use the subwavelength approximation. Defaults to True.
+
+        Returns:
+            np.ndarray: The propagation matrix for the j-th resonator.
+        """
+        if self.omega is None:
+            raise ValueError("omega must be set, is currently None")
+        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
+            raise NotImplementedError(
+                "Propagation matrix is implemented only for structure with same wave number inside and outside."
+            )
+
+        if j == self.N - 1:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[-1],
+                s=space_from_end,
+                k=self.k_in[-1],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        else:
+            p = utils_propagation.propagation_matrix_single(
+                l=self.l[j],
+                s=self.s[j],
+                k=self.k_in[j],
+                delta=self.delta,
+                subwavelength=subwavelength,
+            )
+        return p
 
     def compute_propagation_matrix(
         self, space_from_end: float = 1.0, subwavelength: bool = True
@@ -135,32 +346,60 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Returns:
             np.ndarray: The propagation matrix.
         """
-        if self.omega is None:
-            raise ValueError("omega must be set, is currently None")
-        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
-            raise NotImplementedError(
-                "Propagation matrix is implemented only for structure with same wave number inside and outside."
-            )
 
         pm = np.eye(2)
-        for i in range(self.N - 1):
-            p = utils_propagation.propagation_matrix_single(
-                l=self.l[i],
-                s=self.s[i],
-                k=self.k_in[i],
-                delta=self.delta,
-                subwavelength=subwavelength,
-            )
+        for j in range(self.N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, subwavelength=subwavelength)
             pm = p @ pm
-        p = utils_propagation.propagation_matrix_single(
-            l=self.l[-1],
-            s=space_from_end,
-            k=self.k_in[i],
-            delta=self.delta,
-            subwavelength=subwavelength,
-        )
-        pm = p @ pm
         return pm
+
+    def compute_Lyapunov_exponent(self, space_from_end=1, subwavelength: bool = True, rescale_every=20) -> float:
+        """
+        Computes the Lyapunov exponent for the finite subwavelength wave problem.
+        The Lyapunov exponent is a measure of the exponential growth rate of the wave function.
+        It is computed using the propagation matrix.
+        Args:
+            subwavelength (bool, optional): Whether to use the subwavelength approximation. Defaults to True.
+        Raises:
+            ValueError: If omega is not set.
+            NotImplementedError: If the wave number inside and outside the structure are not the same.
+        Returns:
+            float: The Lyapunov exponent.
+        """
+        pm = np.eye(2, dtype=float)
+        log_norm_sum = 0.0
+        for j in range(self.N):
+            p = self.get_resonator_propagation_matrix(
+                j=j, space_from_end=space_from_end, subwavelength=subwavelength)
+            pm = p @ pm
+            if rescale_every is not None and ((j+1) % rescale_every == 0):
+                norm = np.linalg.norm(pm)
+                log_norm_sum += np.log(norm)
+                pm /= norm
+
+        log_norm_sum += np.log(np.linalg.norm(pm))
+        return log_norm_sum/self.N
+
+    def compute_reflection_and_transmission(self, subwavelength: bool = True) -> Tuple[float, float]:
+        """
+        Computes the transmission and reflection coefficients for the finite subwavelength wave problem.
+        We do this by using the Q matrix to go to the A B basis and then applying the boundary conditions u_in,L = 1, u_in,R = 0.
+
+        Args:
+            subwavelength (bool, optional): Whether to use the subwavelength approximation. Defaults to True.
+
+        Returns:
+            Tuple[float, float]: The transmission and reflection coefficients.
+        """
+        pm = self.compute_propagation_matrix(
+            subwavelength=subwavelength, space_from_end=0)
+        Q0 = utils_propagation.get_Q_matrix(self.k_out, 0)
+        QL = utils_propagation.get_Q_matrix(self.k_out, self.L)
+        M = np.linalg.inv(QL) @ pm @ Q0
+        Rtot = - M[1, 0] / M[1, 1]
+        Ttot = M[0, 0] + M[0, 1] * Rtot
+        return np.abs(Rtot), np.abs(Ttot)
 
 
 class ClassicPeriodicSWP1D(PeriodicSWP1D):
@@ -173,6 +412,11 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
     def __init__(self, **pars):
         super().__init__(**pars)
 
+    @override
+    def get_physics(self):
+        return "Classic"
+
+    @override
     def get_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the capacitance matrix C from Lemma 4.7 in [2]. Only depends on the spacings between resonators.
@@ -182,27 +426,35 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         Returns:
             Callable[[float], np.ndarray]: map alpha -> C^alpha
         """
-
-        d1 = np.concatenate(
-            (
-                [1 / self.s[0] + 1 / self.s[-1]],
-                1 / self.s[:-2] + 1 / self.s[1:-1],
-                [1 / self.s[-1] + 1 / self.s[0]],
+        if self.N == 1:
+            C0 = np.array([[
+                1/self.s[0] + 1/self.s[-1]
+            ]])
+        else:
+            d1 = np.concatenate(
+                (
+                    [1 / self.s[0] + 1 / self.s[-1]],
+                    1 / self.s[1:-1] + 1 / self.s[0:-2],
+                    [1 / self.s[-1] + 1 / self.s[-2]],
+                )
             )
-        )
-        d2 = -1 / self.s[:-1]
-        C0 = np.zeros((self.N, self.N), dtype=complex)
-        C0 += np.diag(d1) + np.diag(d2, 1) + np.diag(d2, -1)
+            d2 = -1 / self.s[:-1]
+            C0 = np.zeros((self.N, self.N), dtype=complex)
+            C0 += np.diag(d1) + np.diag(d2, 1) + np.diag(d2, -1)
+
+        C0 = C0.astype(complex)
 
         def C(alpha) -> np.ndarray:
             if not -np.pi <= alpha <= np.pi:
-                raise ValueError(f"alpha must be in [-pi, pi), you provided {alpha}")
+                raise ValueError(
+                    f"alpha must be in [-pi, pi), you provided {alpha}")
             C0[0, -1] += -np.exp(-1j * alpha) / self.s[-1]
             C0[-1, 0] += -np.exp(1j * alpha) / self.s[-1]
             return C0
 
         return C
 
+    @override
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
@@ -210,43 +462,75 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         Returns:
             Callable[[float], np.ndarray]: A function that maps alpha to the generalised capacitance matrix.
         """
+        return lambda alpha: self.get_material_matrix() @ self.get_capacitance_matrix()(alpha)
 
-        L = np.diag(1 / self.l)
-        V = np.diag(self.v_in)
+    @override
+    def compute_sorted_eigs_capacitance_matrix(
+        self,
+        eigenvalues_only: bool = False,
+        generalised: bool = True,
+        hermitian_acceleration: bool = True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
+        """Compute the eigenpais of the generalised capacitance matrix.
 
-        return lambda alpha: V**2 @ L @ self.get_capacitance_matrix()(alpha)
-
-    def get_band_data(
-        self, generalised: bool = True, nalpha: int = 100
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Returns the band data of the capacitance matrix
+        Returns a callable function with taking a float alpha and returning D(alpha) and V(alpha)
 
         Args:
-            generalised (bool, optional): Wheter to use the generalised capacitance matrix. Defaults to True.
-            nalpha (int, optional): number of samples in [-pi, pi). Defaults to 100.
+            eigenvalues_only (bool, optional): Compute only eigenvalues. Defaults to False.
+            generalised (bool, optional): Use the generalised capacitance matrix. Defaults to True.
+            hermitian_acceleration (bool, optional): In case of hermitian system, use acceleration. Defaults to True.
+            sorting (Literal[ &quot;eve_middle_localization&quot;, &quot;eve_localization&quot;, &quot;eva_real&quot;, &quot;eva_imag&quot;, &quot;eve_abs&quot;, &quot;eva_first_val&quot;, ], optional): _description_. Defaults to "eva_real".
 
         Returns:
-            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
-            np.ndarray: (nalpha, self.N) array with band data
+            Callable[[float], Tuple[np.ndarray, np.ndarray]]: D(alpha), V(alpha)
         """
-        alphas = np.linspace(-np.pi, np.pi, nalpha)
-        if generalised:
-            C = self.get_generalised_capacitance_matrix()
-            bands = np.zeros((nalpha, self.N), dtype=complex)
-            for i, alpha in enumerate(alphas):
-                D, S = np.linalg.eig(C(alpha))
-                D, S = utils.sort_by_eva_real(D, S)
-                bands[i, :] = D
+        def eig(alpha):
+            if hermitian_acceleration:
+                if generalised:
+                    V = self.get_material_matrix(inverted=True)
+                    C = self.get_capacitance_matrix()(alpha)
+                    if eigenvalues_only:
+                        D = sci.linalg.eigvalsh(C, b=V)
+                        S = None
+                    else:
+                        D, S = sci.linalg.eigh(C, b=V)
+                else:
+                    if eigenvalues_only:
+                        D = sci.linalg.eigvalsh(
+                            self.get_capacitance_matrix()(alpha))
+                        S = None
+                    else:
+                        D, S = sci.linalg.eigh(
+                            self.get_capacitance_matrix()(alpha))
+            else:
+                if generalised:
+                    if eigenvalues_only:
+                        D = np.linalg.eigvals(
+                            self.get_generalised_capacitance_matrix()(alpha))
+                        S = None
+                    else:
+                        D, S = np.linalg.eig(
+                            self.get_generalised_capacitance_matrix()(alpha))
+                else:
+                    if eigenvalues_only:
+                        D = np.linalg.eigvalsh(
+                            self.get_capacitance_matrix()(alpha))
+                        S = None
+                    else:
+                        D, S = np.linalg.eigh(
+                            self.get_capacitance_matrix()(alpha))
 
-        else:
-            bands = np.zeros((nalpha, self.N), dtype=float)
-            C = self.get_capacitance_matrix()
-            for i, alpha in enumerate(alphas):
-                D, S = np.linalg.eigh(C(alpha))
-                bands[i, :] = D
-
-        return alphas, bands
+            D, S = utils.sort_by_method(D, S, sorting)
+            return D, S
+        return eig
 
     def plot_band_functions(
         self, generalised=True, nalpha=100, ax: Axes | None = None
@@ -313,6 +597,7 @@ def convert_finite_into_periodic(
     """
     if s_N <= 0:
         raise ValueError("s_N must be positive")
+    finite_problem = copy.deepcopy(finite_problem)
     return ClassicPeriodicSWP1D(
         N=finite_problem.N,
         l=finite_problem.l,

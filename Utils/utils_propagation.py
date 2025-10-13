@@ -5,8 +5,70 @@ import matplotlib.pyplot as plt
 from Subwavelength1D.classic import FiniteSWP1D
 
 
-def get_subwavelength_propagation_matrix_single(l, s, k):
-    return np.array([[1 - l * s * k, s], [-l * k, 1]])
+def get_Q_matrix(k: int | float, x: int | float) -> np.ndarray:
+    """Let u(x) = Ae^{ikx} + Be^{-ikx}. Then the Q matrix is defined as the matrix such that Q(k,x)@(A,B)^T = (u(x), u'(x))^T.
+
+    Args:
+        k (int | float): Wave number
+        x (int | float, optional): Spatal position for change of basis.
+
+    Returns:
+        np.ndarray: The Q matrix
+    """
+    return np.array([[np.exp(1j * k * x), np.exp(-1j * k * x)], [1j * k * np.exp(1j * k * x), -1j * k * np.exp(-1j * k * x)]])
+
+
+def get_subwavelength_propagation_matrix_single(l, s, lbda):
+    return np.array([[1 - l * s * lbda, s], [-l * lbda, 1]])
+
+
+def nonreciprocal_nonsubwavelength_propagation_matrix_single(
+    l: int | float,
+    s: int | float,
+    gamma: int | float,
+    omega: int | float,
+    delta: int | float,
+    symmetrised=True,
+):
+    nu = np.sqrt(complex((gamma/2)**2-omega**2))
+
+    def Psi(a, b):
+        return (a*np.cos(omega*s)+b*np.sin(omega*s))/nu
+
+    P = np.array([
+        [
+            np.cos(omega*s)*np.cosh(nu*l)-1/delta *
+            Psi(-delta*gamma/2, omega)*np.sinh(nu*l),
+            1/omega*np.cosh(nu*l)*np.sin(omega*s)+delta/omega *
+            Psi(omega, -gamma/(2*delta))*np.sinh(nu*l)
+        ],
+        [
+            -omega*np.cosh(nu*l)*np.sin(omega*s)-omega/delta *
+            Psi(omega, delta*gamma/2)*np.sinh(nu*l),
+            np.cos(omega*s)*np.cosh(nu*l)-delta *
+            Psi(gamma/(2*delta), omega)*np.sinh(nu*l)
+        ]
+    ])
+
+    if symmetrised:
+        return P
+    else:
+        return np.exp(-l*gamma/2)*P
+
+
+def nonreciprocal_subwavelength_propagation_matrix_single(
+    l: int | float,
+    s: int | float,
+    gamma: int | float,
+    lbda: int | float,
+    symmetrised=True,
+) -> np.ndarray:
+    def f(z): return z / (1-np.exp(-z))
+    P = np.array([[1-l*s*lbda/f(gamma*l), np.exp(-gamma*l)*s],
+                  [-l*lbda/f(gamma*l), np.exp(-gamma*l)]])
+    if symmetrised:
+        P = np.exp(gamma * l / 2) * P
+    return P
 
 
 def propagation_matrix_single(
@@ -45,13 +107,14 @@ def propagation_matrix_single(
                 ckl * ckl - (1 / delta) * skl * sks,
                 (delta / k) * cks * skl + (1 / k) * ckl * sks,
             ],
-            [(-k / delta) * cks * skl + k * ckl * sks, ckl * cks - delta * skl * sks],
+            [(-k / delta) * cks * skl + k * ckl *
+             sks, ckl * cks - delta * skl * sks],
         ]
     )
 
 
 def propagation_matrix_block(
-    block: Tuple[List[int | float]],
+    block: Tuple[Tuple[int | float]],
     k: int | float,
     delta: int | float = 1e-3,
     subwavelength: bool = True,
@@ -59,7 +122,21 @@ def propagation_matrix_block(
     mat = np.eye(2)
     ll, ss = block
     for i in range(len(ll)):
-        mat = propagation_matrix_single(ll[i], ss[i], k, delta, subwavelength) @ mat
+        mat = propagation_matrix_single(
+            ll[i], ss[i], k, delta, subwavelength) @ mat
+    return mat
+
+
+def propagation_matrix_nonreciprocal_block(
+    block: Tuple[Tuple[int | float]],
+    k: int | float,
+    symmetrised: bool = True,
+) -> np.ndarray:
+    mat = np.eye(2)
+    ll, ss, gamma = block
+    for i in range(len(ll)):
+        mat = nonreciprocal_subwavelength_propagation_matrix_single(
+            ll[i], ss[i], gamma[i], k, symmetrised=symmetrised) @ mat
     return mat
 
 
@@ -102,12 +179,7 @@ def plot_propagation_eigenvalues(
     ks = np.linspace(k_min, k_max, n_pts)
     eves = np.zeros((len(ks), 2 if not only_large else 1), dtype=complex)
     for i, k in enumerate(ks):
-        fswp.set_params(
-            k_in=np.ones(fswp.N) * k,
-            k_out=k,
-            v_in=np.ones(fswp.N) * fswp.omega / k,
-            v_out=fswp.omega / k,
-        )
+        fswp.set_omega(k)
         D, S = np.linalg.eig(
             fswp.compute_propagation_matrix(
                 space_from_end=space_from_end, subwavelength=subwavelength

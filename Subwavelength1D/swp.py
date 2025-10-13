@@ -18,9 +18,9 @@ class SWP1D:
     def __init__(
         self,
         N: int,
-        l: np.ndarray | float,
-        s: np.ndarray | float,
-        v_in: np.ndarray | float | complex | None = None,
+        l: np.ndarray,
+        s: np.ndarray,
+        v_in: np.ndarray | None = None,
         v_out: float | None = None,
         delta: float | None = None,
         omega: float | complex | None = None,
@@ -61,7 +61,7 @@ class SWP1D:
         self.N = N
         self.l = l
         self.s = s
-        self.N = len(l)
+        assert len(l) == N, "The l of the l array must be equal to N"
         self.set_geometry(l, s)
 
         self.v_in = v_in
@@ -114,11 +114,31 @@ class SWP1D:
         self.k_in = self.omega / self.v_in
         self.k_out = self.omega / self.v_out
 
+    def get_material_matrix(self, inverted=False, perform_sqrt=False, return_only_list=False) -> np.ndarray:
+        """
+        Get the material matrix such that VCu = lambda u is a solution to the subwavelength problem.
+
+        Returns:
+            np.ndarray: The material matrix.
+        """
+        diag = (
+            np.power(self.v_in, 2) / self.l
+        ) if not perform_sqrt else (
+            self.v_in/np.sqrt(self.l)
+        )
+        if inverted:
+            diag = 1/diag
+        if return_only_list:
+            return diag
+        else:
+            return np.diag(diag)
+
     def get_pertubed_copy(
         self,
         p: float,
         perturb_param: Literal["spacing", "sizes", "material"] = "spacing",
-        p_sampling: Literal["uniform", "positive", "loguniform"] = "uniform",
+        p_sampling: Literal["uniform", "positive",
+                            "loguniform", "lognormal"] = "uniform",
     ):
         """
         Generate a perturbed copy of the current object.
@@ -127,7 +147,7 @@ class SWP1D:
             p (float): The perturbation magnitude.
             perturb_param (Literal["spacing", "sizes", "material"], optional):
             The parameter to perturb. Defaults to "spacing".
-            p_sampling (Literal["uniform", "positive", "loguniform"], optional):
+            p_sampling (Literal["uniform", "positive", "loguniform", "lognormal"], optional):
             The sampling method for perturbation. Defaults to "uniform".
 
         Returns:
@@ -152,6 +172,10 @@ class SWP1D:
         elif p_sampling == "loguniform":
             perturbation = np.random.uniform(10**-p, 10**p, len(perturb_array))
             perturb_array *= perturbation
+        elif p_sampling == "lognormal":
+            perturbation = np.random.lognormal(
+                mean=0, sigma=p, size=len(perturb_array))
+            perturb_array *= perturbation
 
         if perturb_param == "spacing":
             dp_perturbed.set_geometry(dp_perturbed.l, perturb_array)
@@ -161,6 +185,9 @@ class SWP1D:
             dp_perturbed.v_in = perturb_array
 
         return dp_perturbed
+
+    def get_physics(self):
+        raise NotImplementedError
 
     def plot_geometry(self):
         fig, ax = plt.subplots()
@@ -205,8 +232,8 @@ class FiniteSWP1D(SWP1D):
         N: int,
         l: np.ndarray | float,
         s: np.ndarray | float,
-        v_in: np.ndarray | float | complex | None = None,
-        v_out: float | None = None,
+        v_in: np.ndarray | float | complex = 1,
+        v_out: float | complex = 1,
         delta: float | None = None,
         omega: float | complex | None = None,
         uin=lambda x: np.sin(x),
@@ -230,32 +257,23 @@ class FiniteSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
-            )
-
-        if (
-            isinstance(v_out, float)
-            or isinstance(v_out, int)
-            or isinstance(v_out, complex)
-        ):
-            v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
-                * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         assert (
             len(l) == N
-        ), f"The len of the l array (currently {len(self.l)}) must be equal to N={N}"
+        ), f"The len of the l array (currently {len(l)}) must be equal to N={N}"
         assert (
             len(s) == N - 1
-        ), f"The len of s array (currently {len(self.s)}) must be equal to N-1={N-1}"
+        ), f"The len of s array (currently {len(s)}) must be equal to N-1={N-1}"
         if v_in is not None:
             assert len(v_in) == N, "The l of v_in array must be equal to N"
 
         super().__init__(N, l, s, v_in, v_out, delta, omega, uin, duin)
 
     def __str__(self):
-        return f"One Dimensional Finite system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}."
+        return f"One Dimensional Finite system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}. \nPhysics: {self.get_physics()}"
 
     def __repr__(self):
         return self.__str__()
@@ -263,16 +281,15 @@ class FiniteSWP1D(SWP1D):
     def get_capacitance_matrix(self) -> np.ndarray:
         raise NotImplementedError
 
+    def get_periodized_system(self, sN=None):
+        raise NotImplementedError
+
     def get_generalised_capacitance_matrix(self) -> np.ndarray:
         raise NotImplementedError
 
-    def get_greens_matrix(self, k: int | float) -> np.ndarray:
-        return np.linalg.inv(
-            self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
-        )
-
-    def get_sorted_eigs_capacitance_matrix(
+    def compute_sorted_eigs_capacitance_matrix(
         self,
+        eigenvalues_only=False,
         generalised=True,
         sorting: Literal[
             "eve_middle_localization",
@@ -283,41 +300,73 @@ class FiniteSWP1D(SWP1D):
             "eva_first_val",
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
-        if generalised:
-            D, S = np.linalg.eig(self.get_generalised_capacitance_matrix())
-        else:
-            D, S = np.linalg.eigh(self.get_capacitance_matrix())
-        D, S = utils.sort_by_method(D, S, sorting)
-        return D, S
+        raise NotImplementedError
 
-    def plot_eigenvalues(
-        self,
-        generalised=True,
-        sorting: Literal[
-            "eve_middle_localization",
-            "eve_localization",
-            "eva_real",
-            "eva_imag",
-            "eve_abs",
-            "eva_first_val",
-        ] = "eva_real",
-        colorfunc=None,
-        ax=None,
-    ):
+    def compute_greens_matrix(self, k: int | float) -> np.ndarray:
+        return np.linalg.inv(
+            self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
+        )
+
+    def compute_Thouless_ratios(self, D=None, sN=None, method='kde', W=0.1, knn=10, bw=0.01, return_all=False):
         """
-        Plots the eigenvalues of the capacitance matrix.
-
+        Computes the Thouless ratios for the eigenvalues of the capacitance matrix.
         Args:
-            generalised (bool, optional): If True, computes the eigenvalues of get_generalised_capacitance_matrix , else get_capacitance_matrix. Defaults to True.
-            sorting (_type_, optional): Sorting for the eigenvalues. If generalised is False, the value is ignored and "real" is used. Defaults to Literal["real"].
+            D (np.ndarray, optional): Eigenvalues of the capacitance matrix. If None, they are computed.
+            sN (float, optional): Final spacing sN for periodisation.
+            method (str, optional): Method to compute the level spacings. Options are 'kde', 'w_knn', 'k-closest'. Defaults to 'kde'.
+            W (float, optional): Window size for the level spacing calculation. Defaults to 0.1.
+            knn (int, optional): Number of nearest neighbors for the 'w_knn' and 'k-closest' methods. Defaults to 10.
+            bw (float, optional): Bandwidth for the 'kde' method. Defaults to 0.01.
+            return_all (bool, optional): If True, returns the Thouless ratios, energy shifts, and level spacings. Defaults to False.
+        Returns:
+            np.ndarray: Thouless ratios for the eigenvalues of the capacitance matrix.
         """
-        if generalised:
-            D, _ = np.linalg.eig(self.get_generalised_capacitance_matrix())
-            D = np.sort(D)
-        else:
-            D, _ = np.linalg.eigh(self.get_capacitance_matrix())
+        if D is None:
+            D, _ = self.compute_sorted_eigs_capacitance_matrix(
+                eigenvalues_only=True)
+        pwp = self.get_periodized_system(sN=sN)
+        alphas = [0, np.pi]
 
-        return utils.plot_eigenvalues(D, colorfunc, ax)
+        _, bands = pwp.get_band_data(alphas=alphas)
+
+        energy_shifts = np.abs(bands[1, :] - bands[0, :])
+
+        if method == 'kde':
+            kde = sci.stats.gaussian_kde(D, bw_method=bw)
+            rho_E = (self.N / self.L)*kde.evaluate(D)
+
+            level_spacings = 1.0 / (rho_E * self.L)
+
+        elif method == 'w_knn':
+            level_spacings = np.full_like(D, np.nan, dtype=float)
+
+            # Vectorised search: for each E_i find indices of window [E_i-W/2, E_i+W/2]
+            for i, Ei in enumerate(D):
+                lo = np.searchsorted(D, Ei - W / 2, side='left')
+                lo = max(i-knn, lo)
+                hi = np.searchsorted(D, Ei + W / 2, side='right')
+                hi = min(i+knn, hi)
+
+                # Need at least two *gaps* → three levels
+                if hi - lo >= 3:
+                    # all gaps inside the window
+                    local_gaps = np.diff(D[lo:hi])
+                    level_spacings[i] = local_gaps.mean()
+
+        elif method == 'k-closest':
+            level_spacings = np.full_like(D, np.nan, dtype=float)
+
+            # Vectorised search: for each E_i find indices of k-closest levels
+            for i, Ei in enumerate(D):
+                # Find k closest neighbors (excluding self)
+                diffs = np.abs(D - Ei)
+                diffs[i] = np.inf  # exclude self
+                closest_indices = np.argsort(diffs)[:knn]
+                local_gaps = np.diff(np.sort(D[closest_indices]))
+                level_spacings[i] = local_gaps.mean()
+
+        thouless_ratios = energy_shifts / level_spacings
+        return (thouless_ratios, energy_shifts, level_spacings) if return_all else thouless_ratios
 
 
 class PeriodicSWP1D(SWP1D):
@@ -355,17 +404,8 @@ class PeriodicSWP1D(SWP1D):
             or isinstance(v_in, complex)
         ):
             v_in = (
-                np.ones(N, dtype=complex if isinstance(v_in, complex) else float) * v_in
-            )
-
-        if (
-            isinstance(v_out, float)
-            or isinstance(v_out, int)
-            or isinstance(v_out, complex)
-        ):
-            v_out = (
-                np.ones(N, dtype=complex if isinstance(v_out, complex) else float)
-                * v_in
+                np.ones(N, dtype=complex if isinstance(
+                    v_in, complex) else float) * v_in
             )
 
         assert len(l) == N, "The l of the l array must be equal to N"
@@ -386,7 +426,7 @@ class PeriodicSWP1D(SWP1D):
         )
 
     def __str__(self):
-        return f"One Dimensional Periodic system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}."
+        return f"One Dimensional Periodic system with {self.N} resonators.\nGeometry:     The first lengths are {self.l[:5]} and the first spacings are {self.s[:5]}. \nPhysics: {self.get_physics()}"
 
     def __repr__(self):
         return self.__str__()
@@ -397,31 +437,59 @@ class PeriodicSWP1D(SWP1D):
     def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         raise NotImplementedError
 
+    def compute_sorted_eigs_capacitance_matrix(
+        self,
+        eigenvalues_only=False,
+        generalised=True,
+        sorting: Literal[
+            "eve_middle_localization",
+            "eve_localization",
+            "eva_real",
+            "eva_imag",
+            "eve_abs",
+            "eva_first_val",
+        ] = "eva_real",
+    ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
+        raise NotImplementedError
+
     def get_band_data(
-        self, generalised=True, nalpha=100
+        self, generalised=True, nalpha=10, alphas=None
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the band data of the capacitance matrix
 
         Args:
-            generalised (bool, optional): doesnt work yet. Defaults to False.
-            nalpha (int, optional): number of samples in the first BZ. Defaults to 100.
+            generalised (bool, optional): whether to use the generalised capacitance matrix. Defaults to True.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 10.
 
         Returns:
-            np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
-            np.ndarray: (nalpha, self.N) array with band data
+            alphas:np.ndarray: np.linspace(-np.pi, np.pi, nalpha)
+            bands:np.ndarray: (nalpha, self.N) array with band data
         """
-        alphas = np.linspace(-np.pi, np.pi, nalpha)
-
-        C = (
-            self.get_generalised_capacitance_matrix()
-            if generalised
-            else self.get_capacitance_matrix()
-        )
+        if alphas is None:
+            alphas = np.linspace(-np.pi, np.pi, nalpha)
 
         bands = np.zeros((nalpha, self.N), dtype=complex)
         for i, alpha in enumerate(alphas):
-            D, S = np.linalg.eig(C(alpha))
-            bands[i, :] = np.sort(np.real(D))
+            D, _ = self.compute_sorted_eigs_capacitance_matrix(
+                eigenvalues_only=True,
+                generalised=generalised)(alpha)
+            bands[i, :] = D
 
         return alphas, bands
+
+    def get_band_variation(
+        self, generalised=True, nalpha=10, n2_normalization=True,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the variation of each of the N bands, normalized by N^2
+
+        Args:
+            generalised (bool, optional): whether to use the generalised capacitance matrix. Defaults to True.
+            nalpha (int, optional): number of samples in the first BZ. Defaults to 10.
+
+        Returns:
+            np.ndarray: (self.N) band variation of each of the N bands
+        """
+        alphas, bands = self.get_band_data(generalised, nalpha)
+        return np.var(bands, axis=0) * self.N**2 if n2_normalization else np.var(bands, axis=0)
