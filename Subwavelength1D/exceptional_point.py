@@ -10,7 +10,9 @@ from Subwavelength1D.nonreciprocal import NonReciprocalFiniteSWP1D, NonReciproca
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
+
 import itertools
 import copy
 

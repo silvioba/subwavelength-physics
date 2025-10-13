@@ -22,6 +22,40 @@ def get_subwavelength_propagation_matrix_single(l, s, lbda):
     return np.array([[1 - l * s * lbda, s], [-l * lbda, 1]])
 
 
+def nonreciprocal_nonsubwavelength_propagation_matrix_single(
+    l: int | float,
+    s: int | float,
+    gamma: int | float,
+    omega: int | float,
+    delta: int | float,
+    symmetrised=True,
+):
+    nu = np.sqrt(complex((gamma/2)**2-omega**2))
+
+    def Psi(a, b):
+        return (a*np.cos(omega*s)+b*np.sin(omega*s))/nu
+
+    P = np.array([
+        [
+            np.cos(omega*s)*np.cosh(nu*l)-1/delta *
+            Psi(-delta*gamma/2, omega)*np.sinh(nu*l),
+            1/omega*np.cosh(nu*l)*np.sin(omega*s)+delta/omega *
+            Psi(omega, -gamma/(2*delta))*np.sinh(nu*l)
+        ],
+        [
+            -omega*np.cosh(nu*l)*np.sin(omega*s)-omega/delta *
+            Psi(omega, delta*gamma/2)*np.sinh(nu*l),
+            np.cos(omega*s)*np.cosh(nu*l)-delta *
+            Psi(gamma/(2*delta), omega)*np.sinh(nu*l)
+        ]
+    ])
+
+    if symmetrised:
+        return P
+    else:
+        return np.exp(-l*gamma/2)*P
+
+
 def nonreciprocal_subwavelength_propagation_matrix_single(
     l: int | float,
     s: int | float,
@@ -96,12 +130,13 @@ def propagation_matrix_block(
 def propagation_matrix_nonreciprocal_block(
     block: Tuple[Tuple[int | float]],
     k: int | float,
+    symmetrised: bool = True,
 ) -> np.ndarray:
     mat = np.eye(2)
     ll, ss, gamma = block
     for i in range(len(ll)):
         mat = nonreciprocal_subwavelength_propagation_matrix_single(
-            ll[i], ss[i], gamma[i], k) @ mat
+            ll[i], ss[i], gamma[i], k, symmetrised=symmetrised) @ mat
     return mat
 
 

@@ -13,7 +13,8 @@ import matplotlib.colors as colors
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
 from matplotlib.axes import Axes
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 
@@ -32,7 +33,7 @@ def check_parameters_inconsistencies(fwp: FiniteSWP1D):
 
 
 class ClassicFiniteSWP1D(FiniteSWP1D):
-    """
+    FiniteSWP1D.__doc__ + """
     Base class for acoustic subwavelength wave problem. Subclass of OneDimensionalFiniteSWLProblem
 
     Initially modelled on [1] (see README), subsequently extended
@@ -150,9 +151,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
     @override
     def compute_sorted_eigs_capacitance_matrix(
         self,
-        eigenvalues_only=False,
-        generalised=True,
-        hermitian_acceleration=True,
+        eigenvalues_only: bool = False,
+        generalised: bool = True,
+        hermitian_acceleration: bool = True,
         sorting: Literal[
             "eve_middle_localization",
             "eve_localization",
@@ -162,6 +163,17 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
             "eva_first_val",
         ] = "eva_real",
     ) -> Tuple[np.ndarray, np.ndarray]:
+        """Computes the eigendecomposition of the capacitance matrix
+
+        Args:
+            eigenvalues_only (bool, optional): Compute only eigenvalues. Defaults to False.
+            generalised (bool, optional): Use the generalised capacitance matrix. Defaults to True.
+            hermitian_acceleration (bool, optional): Use acceleration in case of hermitian matrix. Defaults to True.
+            sorting (Literal[ &quot;eve_middle_localization&quot;, &quot;eve_localization&quot;, &quot;eva_real&quot;, &quot;eva_imag&quot;, &quot;eve_abs&quot;, &quot;eva_first_val&quot;, ], optional): _description_. Defaults to "eva_real".
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: matrix of eigenvalues , matrix of eigenvectors
+        """
         if hermitian_acceleration:
             if generalised:
                 Vl = self.get_material_matrix(
@@ -265,7 +277,17 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
-    def compute_greens_matrix(self, k):
+    def compute_greens_matrix(self, k: float):
+        """Computes the green Matrix / descrete green function
+
+        Computes C - k*id
+
+        Args:
+            k (float): see description
+
+        Returns:
+            np.array: descrete green function
+        """
         return np.linalg.inv(
             self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
         )
@@ -433,7 +455,7 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
         return C
 
     @override
-    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         """
         Computes the generalised capacitance matrix as a function of the Bloch wave number alpha.
 
@@ -445,9 +467,9 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
     @override
     def compute_sorted_eigs_capacitance_matrix(
         self,
-        eigenvalues_only=False,
-        generalised=True,
-        hermitian_acceleration=True,
+        eigenvalues_only: bool = False,
+        generalised: bool = True,
+        hermitian_acceleration: bool = True,
         sorting: Literal[
             "eve_middle_localization",
             "eve_localization",
@@ -457,6 +479,19 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
             "eva_first_val",
         ] = "eva_real",
     ) -> Callable[[float], Tuple[np.ndarray, np.ndarray]]:
+        """Compute the eigenpais of the generalised capacitance matrix.
+
+        Returns a callable function with taking a float alpha and returning D(alpha) and V(alpha)
+
+        Args:
+            eigenvalues_only (bool, optional): Compute only eigenvalues. Defaults to False.
+            generalised (bool, optional): Use the generalised capacitance matrix. Defaults to True.
+            hermitian_acceleration (bool, optional): In case of hermitian system, use acceleration. Defaults to True.
+            sorting (Literal[ &quot;eve_middle_localization&quot;, &quot;eve_localization&quot;, &quot;eva_real&quot;, &quot;eva_imag&quot;, &quot;eve_abs&quot;, &quot;eva_first_val&quot;, ], optional): _description_. Defaults to "eva_real".
+
+        Returns:
+            Callable[[float], Tuple[np.ndarray, np.ndarray]]: D(alpha), V(alpha)
+        """
         def eig(alpha):
             if hermitian_acceleration:
                 if generalised:
@@ -479,11 +514,11 @@ class ClassicPeriodicSWP1D(PeriodicSWP1D):
                 if generalised:
                     if eigenvalues_only:
                         D = np.linalg.eigvals(
-                            self.compute_generalised_capacitance_matrix()(alpha))
+                            self.get_generalised_capacitance_matrix()(alpha))
                         S = None
                     else:
                         D, S = np.linalg.eig(
-                            self.compute_generalised_capacitance_matrix()(alpha))
+                            self.get_generalised_capacitance_matrix()(alpha))
                 else:
                     if eigenvalues_only:
                         D = np.linalg.eigvalsh(

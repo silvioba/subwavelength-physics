@@ -7,7 +7,8 @@ from Subwavelength1D.swp import (
 
 import Utils.utils_general as utils
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 
@@ -89,7 +90,7 @@ class PeriodicBandedMMatrix(PeriodicSWP1D):
         return C
 
     @override
-    def compute_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
+    def get_generalised_capacitance_matrix(self) -> Callable[[float], np.ndarray]:
         return self.get_capacitance_matrix()
 
     @override

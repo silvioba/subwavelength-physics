@@ -19,7 +19,8 @@ import Subwavelength1D.disordered as disordered
 from Subwavelength1D.metaatom import *
 from Subwavelength1D.quasiperiodic import *
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 from tqdm import tqdm
@@ -99,7 +100,7 @@ def plot_iDoS(sp: ClassicFiniteSWP1D = None, D=None, dos_min=1.5, dos_max=3.5, l
 
     if D is None:
         assert sp is not None
-        D = sp.compute_spectral_range_capacitance_matrix(
+        D, _ = sp.compute_spectral_range_capacitance_matrix(
             select='v', select_range=(dos_min, dos_max))
 
     ax.ecdf(D, color=color, label=label)
@@ -114,7 +115,7 @@ def plot_DoS(sp: ClassicFiniteSWP1D = None, D=None, basic_block=None, dimer_bloc
                                      dos_min, dos_max, ax, styles)
     if D is None:
         assert sp is not None
-        D = sp.compute_spectral_range_capacitance_matrix(
+        D, _ = sp.compute_spectral_range_capacitance_matrix(
             select='v', select_range=(dos_min, dos_max))
 
     hist, edges = np.histogram(D, bins=bins)

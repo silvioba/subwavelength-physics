@@ -1,3 +1,4 @@
+from functools import wraps
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -6,7 +7,8 @@ from matplotlib.axes import Axes
 
 from Utils.settings import settings
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 plt.rcParams.update(settings.matplotlib_params)
 

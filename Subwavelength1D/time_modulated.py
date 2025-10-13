@@ -2,7 +2,8 @@ import numpy as np
 import scipy as sci
 from scipy.sparse.linalg import eigs
 from Subwavelength1D.swp import FiniteSWP1D
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 from Utils.utils_general import sort_by_eva_real
 import Utils.utils_general as utils
 

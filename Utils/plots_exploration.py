@@ -1,6 +1,7 @@
 import numpy as np
 import scipy as sci
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
@@ -19,7 +20,8 @@ import Subwavelength1D.disordered as disordered
 from Subwavelength1D.metaatom import *
 from Subwavelength1D.quasiperiodic import *
 
-from typing import Literal, Callable, Tuple, Self, List, override
+from typing import Literal, Callable, Tuple, Self, List
+from typing_extensions import override
 
 import copy
 from tqdm import tqdm
@@ -46,6 +48,8 @@ def visualize_spectrum(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=False, a
         axes[1].plot(sv, 'k-')
     if semilogy:
         axes[1].set_yscale('log')
+
+    return fig, axes
 
 
 def visualize_spectrum_complex(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=False, axes=None, ylim=None):
@@ -139,6 +143,57 @@ def get_gap_counts(dp: disordered.DisorderedCommon, k_min=1e-1, k_max=5, n_pts=1
         block_gaps[i] = gap_truth
 
     return np.count_nonzero(block_gaps, axis=0), ks
+
+
+def get_gap_changes(dp: disordered.DisorderedCommon, k_min=1e-1, k_max=5, n_pts=1000):
+    counts, ks = get_gap_counts(dp, k_min, k_max, n_pts)
+    changes = []
+    count = 0
+    changes.append((0, 0))
+    for i in range(1, len(counts)):
+        if counts[i] != count:
+            changes.append((ks[i], counts[i]))
+            count = counts[i]
+    return changes
+
+
+def shade_regions(dp: DisorderedClassicFiniteSWP1D, k_min=1e-3, k_max=5, n_pts=100, horizontal=False, offset=0, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    change_points = get_gap_changes(dp, k_min, k_max, n_pts)
+
+    def colorfun(gap_count):
+        D = len(dp.blocks)
+        if gap_count == 0:
+            return "green"
+        elif gap_count == D:
+            return "red"
+        else:
+            return "orange"
+
+    for i in range(len(change_points)):
+        k = change_points[i][0]
+        gap_count = change_points[i][1]
+        if i == len(change_points)-1:
+            next_k = k_max
+        else:
+            next_k = change_points[i+1][0]
+        if horizontal:
+            ax.axhspan(k, next_k,  alpha=0.3, facecolor=colorfun(
+                gap_count), edgecolor=None)
+        else:
+            ax.axvspan(k, next_k,  alpha=0.3, facecolor=colorfun(
+                gap_count), edgecolor=None)
+
+        # Create legend handles
+    red_patch = mpl.patches.Patch(color='red', alpha=0.3, label='Bandgap')
+    green_patch = mpl.patches.Patch(
+        color='green', alpha=0.3, label='Shared pass band')
+    orange_patch = mpl.patches.Patch(
+        color='orange', alpha=0.3, label='Hybridisation region')
+
+    # Add to legend
+    return [red_patch, green_patch, orange_patch]
 
 
 def get_region_function(dp: disordered.DisorderedCommon, k_min=1e-1, k_max=5, n_pts=1000, colors_out=True):
