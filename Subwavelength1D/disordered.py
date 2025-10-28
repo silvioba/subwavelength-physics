@@ -65,11 +65,17 @@ class DisorderedCommon(FiniteSWP1D):
 
     def get_sN(self):
         """Get the final spacing of the system.
+        If the first block has a pre-spacing this is added.
 
         Returns:
             float: Final spacing of the system
         """
-        return self.blocks[self.idxs[-1]][1][-1]
+        b0 = self.blocks[self.idxs[0]]
+        s0 = b0[1][0] if len(b0[1]) == len(b0[0]) + 1 else 0
+        bN = self.blocks[self.idxs[-1]]
+        sN = bN[1][-1]
+
+        return s0 + sN
 
     def get_block_list(self):
         """Get the list of len(self.idxs) containing the corresponding blocks, as specified by self.idx.
@@ -204,8 +210,14 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
                 # Gap Block
                 if len(s) > 0:
                     s[-1] += ss[0]
+            elif len(ss) == len(ll) + 1:
+                # Block with pre and post spacing
+                if len(s) > 0:
+                    s[-1] += ss[0]
+                l = l + list(ll)
+                s = s + list(ss[1:])
             else:
-                # Regular Block
+                # Regular Block (only post spacing)
                 l = l + list(ll)
                 s = s + list(ss)
         s = s[:-1]
@@ -311,6 +323,13 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
                 # Gap Block
                 if len(s) > 0:
                     s[-1] += ss[0]
+            elif len(ss) == len(ll) + 1:
+                # Block with pre and post spacing
+                if len(s) > 0:
+                    s[-1] += ss[0]
+                l = l + list(ll)
+                s = s + list(ss[1:])
+                g = g + list(gg)
             else:
                 # Regular Block
                 l = l + list(ll)
@@ -332,6 +351,12 @@ class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCom
 
         for i, block in enumerate(self.blocks):
             ll, ss, gg = block
+            if len(ss) == len(ll) + 1:
+                # Block with pre and post spacing
+                s0 = ss[0]
+                ss = list(ss[1:])
+                ss[-1] += s0
+                ss = tuple(ss)
             resonator = NonReciprocalPeriodicSWP1D(
                 N=len(ll), gammas=gg, l=ll, s=ss, v_in=1, v_out=1
             )

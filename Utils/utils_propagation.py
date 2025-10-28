@@ -71,6 +71,33 @@ def nonreciprocal_subwavelength_propagation_matrix_single(
     return P
 
 
+def propagation_matrix_free_space(
+    s: int | float,
+    k: int | float,
+    delta: int | float = 1e-3,
+    subwavelength: bool = True,
+) -> np.ndarray:
+    """
+    Computes the propagation matrix from A to B in empty space like
+    |--s--| 
+    ^A    ^B
+
+    Args:
+        s (int | float): length in free space
+        k (int | float): wave number
+        delta (int | float): derivative transmission parameter
+        subwavelength (bool): whether to use the subwavelength approximation
+
+    Returns:
+        np.ndarray: propagation matrix from A to B
+    """
+    if subwavelength:
+        return np.array([[1, s], [0, 1]])
+    else:
+        raise NotImplementedError(
+            "Non-subwavelength propagation matrix for free space not implemented yet.")
+
+
 def propagation_matrix_single(
     l: int | float,
     s: int | float,
@@ -121,6 +148,11 @@ def propagation_matrix_block(
 ) -> np.ndarray:
     mat = np.eye(2)
     ll, ss = block
+    if len(ss) == len(ll) + 1:
+        # Block with pre and post spacing
+        mat = propagation_matrix_free_space(
+            ss[0], k, delta, subwavelength) @ mat
+        ss = ss[1:]
     for i in range(len(ll)):
         mat = propagation_matrix_single(
             ll[i], ss[i], k, delta, subwavelength) @ mat
@@ -134,6 +166,11 @@ def propagation_matrix_nonreciprocal_block(
 ) -> np.ndarray:
     mat = np.eye(2)
     ll, ss, gamma = block
+    if len(ss) == len(ll) + 1:
+        # Block with pre and post spacing
+        mat = propagation_matrix_free_space(
+            ss[0], k, subwavelength=True) @ mat
+        ss = ss[1:]
     for i in range(len(ll)):
         mat = nonreciprocal_subwavelength_propagation_matrix_single(
             ll[i], ss[i], gamma[i], k, symmetrised=symmetrised) @ mat
