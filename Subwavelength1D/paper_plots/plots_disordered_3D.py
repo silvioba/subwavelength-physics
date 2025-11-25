@@ -156,7 +156,7 @@ def get_decay_rate_per_row(C, cutoff=0):
         ii, cc = get_C_decay(C, i, cutoff=cutoff)
         if ii and cc:
             slope, _ = np.polyfit(np.log(ii), np.log(np.abs(cc)), 1)
-            decay_rates.append(slope)
+            decay_rates.append(-slope)
     return decay_rates
 
 
