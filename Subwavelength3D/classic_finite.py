@@ -234,10 +234,10 @@ class ClassicFiniteSWP3D(SWP3D):
 
         N = 4 * i + 1
         return cls(radii=np.ones(N) * r, centers=centers, **params)
-    
+
     @classmethod
     def get_chain(
-        cls, N: int, sep: float| int, radius: float | int, **params
+        cls, N: int, sep: float | int, radius: float | int, **params
     ) -> Self:
         """Create a chain of equally spaced resonators on a line
 
@@ -257,7 +257,6 @@ class ClassicFiniteSWP3D(SWP3D):
         radii = np.array([radius]*N)
         centers = np.array([[0, 0, z*center_sep] for z in range(N)])
         return cls(radii=radii, centers=centers, **params)
-    
 
     def compute_colinear_single_layer_potential_matrix_bruteforce(
         self, N_multipole: int, k0: float = 1e-6
