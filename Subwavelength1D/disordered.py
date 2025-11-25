@@ -238,41 +238,6 @@ class DisorderedClassicFiniteSWP1D(ClassicFiniteSWP1D, DisorderedCommon):
         pwp = convert_finite_into_periodic(self, sN)
         return pwp
 
-    def get_Pj(self, j, subwavelength=True):
-        """Get the Propagation matrix for the j-th resonator.
-
-        Args:
-            j (int): Index of the resonator
-            subwavelength (bool, optional): Whether to use subwavelength approximation. Defaults to True.
-
-        Returns:
-            np.ndarray: Pj matrix
-        """
-        if self.omega is None:
-            raise ValueError("omega must be set, is currently None")
-        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
-            raise NotImplementedError(
-                "Propagation matrix is implemented only for structure with same wave number inside and outside."
-            )
-
-        if j == self.N - 1:
-            p = utils_propagation.propagation_matrix_single(
-                l=self.l[-1],
-                s=self.get_sN(),
-                k=self.k_in[-1],
-                delta=self.delta,
-                subwavelength=subwavelength,
-            )
-        else:
-            p = utils_propagation.propagation_matrix_single(
-                l=self.l[j],
-                s=self.s[j],
-                k=self.k_in[j],
-                delta=self.delta,
-                subwavelength=subwavelength,
-            )
-        return p
-
 
 class DisorderedNonReciprocalFiniteSWP1D(NonReciprocalFiniteSWP1D, DisorderedCommon):
     """

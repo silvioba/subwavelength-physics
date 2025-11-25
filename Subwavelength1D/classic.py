@@ -315,7 +315,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
             p = utils_propagation.propagation_matrix_single(
                 l=self.l[-1],
                 s=space_from_end,
-                k=self.k_in[-1],
+                vi=self.v_in[-1],
+                vo=self.v_out,
+                z=self.omega,
                 delta=self.delta,
                 subwavelength=subwavelength,
             )
@@ -323,7 +325,9 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
             p = utils_propagation.propagation_matrix_single(
                 l=self.l[j],
                 s=self.s[j],
-                k=self.k_in[j],
+                vi=self.v_in[j],
+                vo=self.v_out,
+                z=self.omega,
                 delta=self.delta,
                 subwavelength=subwavelength,
             )
