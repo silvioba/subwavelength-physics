@@ -223,20 +223,22 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             )
 
         if j == self.N - 1:
-            p = utils_propagation.nonreciprocal_subwavelength_propagation_matrix_single(
+            p = utils_propagation.nonreciprocal_propagation_matrix_single(
                 l=self.l[-1],
                 s=space_from_end,
+                z=self.k_in[-1],
                 gamma=self.gammas[-1],
-                lbda=self.k_in[-1],
-                symmetrised=symmetrised
+                symmetrised=symmetrised,
+                subwavelength=True
             )
         else:
-            p = utils_propagation.nonreciprocal_subwavelength_propagation_matrix_single(
+            p = utils_propagation.nonreciprocal_propagation_matrix_single(
                 l=self.l[j],
                 s=self.s[j],
+                z=self.k_in[j],
                 gamma=self.gammas[j],
-                lbda=self.k_in[j],
-                symmetrised=symmetrised
+                symmetrised=symmetrised,
+                subwavelength=True
             )
         return p
 

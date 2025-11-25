@@ -10,6 +10,14 @@ Maintainers of the repository are:
 * Silvio Barandun (barandun at mit.edu)
 * Alexander Uhlmann (alexander.uhlmann at sam.math.ethz.ch)
 
+You can cite this repo as
+@software{barandun.uhlmannSubwavelength,
+  title = {Subwavelength Physics},
+  author = {Barandun, Silvio and Uhlmann, Alexander},
+  url = {https://github.com/silvioba/subwavelength-physics},
+  version = {v2.0}
+}
+
 === FMM
 @auhlmann developed a great idea on how to make the 3D code faster using the fast multiple method (FMM). We build this into the v2 of the code. FMM needs a good library to run, which python does not provide out of the box. Here below you find a step-by-step guide on how to get this to work. The indications are for linux/ubuntu shell, but it should not be too different on other devices.
 
@@ -80,7 +88,7 @@ source venv/bin/activate
 ----
 
 === Scientific backgrounds
-This code builds on various publications. In the file `bib.bib`.
+This code builds on various publications. You can find them in the file `bib.bib`.
 
 === Coding guidelines for contributions
 1. Use google docstrings
