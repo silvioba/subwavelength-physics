@@ -260,6 +260,8 @@ class FiniteSWP1D(SWP1D):
                 np.ones(N, dtype=complex if isinstance(
                     v_in, complex) else float) * v_in
             )
+        if isinstance(v_in, list):
+            v_in = np.array(v_in)
 
         assert (
             len(l) == N
@@ -306,6 +308,11 @@ class FiniteSWP1D(SWP1D):
         return np.linalg.inv(
             self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
         )
+
+    def compute_propagation_matrix(
+        self, space_from_end: float = 1.0, subwavelength: bool = True
+    ) -> np.ndarray:
+        raise NotImplementedError
 
     def compute_Thouless_ratios(self, D=None, sN=None, method='kde', W=0.1, knn=10, bw=0.01, return_all=False):
         """
