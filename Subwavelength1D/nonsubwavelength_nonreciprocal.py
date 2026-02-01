@@ -64,12 +64,16 @@ class NonSubwavelengthNonReciprocalFiniteSWP1D(FiniteSWP1D):
                 )
         check_parameters_inconsitencies(self)
 
-    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, symmetrised: bool = True):
+    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, subwavelength=False, symmetrised: bool = True):
         if self.omega is None:
             raise ValueError("omega must be set, is currently None")
         if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
             raise NotImplementedError(
                 "Propagation matrix is implemented only for structure with same wave number inside and outside."
+            )
+        if subwavelength:
+            raise NotImplementedError(
+                "Use NonReciprocalFiniteSWP1D instead."
             )
 
         if j == self.N - 1:
@@ -94,13 +98,14 @@ class NonSubwavelengthNonReciprocalFiniteSWP1D(FiniteSWP1D):
             )
         return p
 
+    @override
     def compute_propagation_matrix(
-        self, space_from_end: float = 1.0, symmetrised: bool = True
+        self, space_from_end: float = 1.0, subwavelength: bool = False, symmetrised: bool = True
     ) -> np.ndarray:
         pm = np.eye(2)
         for j in range(self.N):
             p = self.get_resonator_propagation_matrix(
-                j=j, space_from_end=space_from_end, symmetrised=symmetrised)
+                j=j, space_from_end=space_from_end, subwavelength=subwavelength, symmetrised=symmetrised)
             pm = p @ pm
         return pm
 
@@ -177,6 +182,20 @@ class NonSubwavelengthNonReciprocalFiniteSWP1D(FiniteSWP1D):
 
         self.alphas = alphas
         self.aas = aas
+
+    def Gamma(self, x):
+        # Returns \int_0^x gamma(x') dx'
+        j = np.searchsorted(self.xi, x) - 1
+        if j % 2 == 0:
+            # Inside resonator
+            i = (j // 2)
+            xi1 = self.xi[j]
+            return np.sum(self.gammas[:i] * self.l[:i]) + self.gammas[i] * (x - xi1)
+        else:
+            # Outside resonator
+            i = ((j + 1) // 2)
+            xi1 = self.xi[j]
+            return np.sum(self.gammas[:i] * self.l[:i])
 
     def u(self, x, return_inside=False):
         def _Xi(gamma, omega):

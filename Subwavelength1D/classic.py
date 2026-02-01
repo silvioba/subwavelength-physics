@@ -7,6 +7,8 @@ from Subwavelength1D.swp import (
 
 
 import Utils.utils_propagation as utils_propagation
+from Utils.utils_propagation import get_Q_matrix as _Q
+
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -249,7 +251,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
                 - S: np.ndarray of eigenvectors, normalized and properly scaled
 
         The generalized capacitance matrix is constructed by scaling the regular capacitance matrix
-        with material properties. The eigenvalues and eigenvectors are computed using 
+        with material properties. The eigenvalues and eigenvectors are computed using
         scipy.linalg.eigh_tridiagonal for efficiency, as the capacitance matrix has a tridiagonal structure.
 
         The eigenvectors are scaled by the material properties and then normalized.
@@ -306,10 +308,6 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         """
         if self.omega is None:
             raise ValueError("omega must be set, is currently None")
-        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
-            raise NotImplementedError(
-                "Propagation matrix is implemented only for structure with same wave number inside and outside."
-            )
 
         if j == self.N - 1:
             p = utils_propagation.propagation_matrix_single(
@@ -333,6 +331,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
             )
         return p
 
+    @override
     def compute_propagation_matrix(
         self, space_from_end: float = 1.0, subwavelength: bool = True
     ) -> np.ndarray:
@@ -401,9 +400,63 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Q0 = utils_propagation.get_Q_matrix(self.k_out, 0)
         QL = utils_propagation.get_Q_matrix(self.k_out, self.L)
         M = np.linalg.inv(QL) @ pm @ Q0
+        print(M)
         Rtot = - M[1, 0] / M[1, 1]
         Ttot = M[0, 0] + M[0, 1] * Rtot
         return np.abs(Rtot), np.abs(Ttot)
+
+    def solve_u(self, alpha_0=None):
+        assert self.omega is not None, "omega must be set, is currently None"
+
+        alphas = np.zeros((self.N + 1, 2), dtype=complex)
+        aas = np.zeros((self.N, 2), dtype=complex)
+        if alpha_0 is None:
+            alphas[0] = [0.0, 1.0]
+        else:
+            alphas[0] = alpha_0
+
+        D = np.diag([1, self.delta])
+        Dinv = np.diag([1, 1/self.delta])
+
+        for j in range(self.N):
+            # alpha outside to u inside
+            u_outside_m = _Q(self.omega/self.v_out, self.xim[j]) @ alphas[j]
+            u_inside_m = D @ u_outside_m
+
+            # calculate a inside
+            aas[j] = np.linalg.inv(
+                _Q(self.omega/self.v_in[j], self.xim[j])) @ u_inside_m
+
+            # a inside to alpha outside
+            u_inside_p = _Q(self.omega/self.v_in[j], self.xip[j]) @ aas[j]
+            u_outside_p = Dinv @ u_inside_p
+            alphas[j+1] = np.linalg.inv(_Q(self.omega /
+                                        self.v_out, self.xip[j])) @ u_outside_p
+
+        self.alphas = alphas
+        self.aas = aas
+
+    def u(self, x, return_inside=False):
+        # Find j such that self.xi[j] < x < self.xi[j+1]
+        j = np.searchsorted(self.xi, x) - 1
+        if j % 2 == 0:
+            # Inside resonator
+            i = (j // 2)
+            u = self.aas[i][0]*np.exp(1j*self.omega/self.v_in[i]*x) + \
+                self.aas[i][1]*np.exp(-1j*self.omega/self.v_in[i]*x)
+            if return_inside:
+                return u, True
+            else:
+                return u
+        else:
+            # Outside resonator
+            i = ((j + 1) // 2)
+            u = self.alphas[i][0]*np.exp(1j*self.omega/self.v_out*x) + \
+                self.alphas[i][1]*np.exp(-1j*self.omega/self.v_out*x)
+            if return_inside:
+                return u, False
+            else:
+                return u
 
 
 class ClassicPeriodicSWP1D(PeriodicSWP1D):

@@ -2,8 +2,6 @@ import numpy as np
 from typing import Literal, Callable, Tuple, Self, List
 import matplotlib.pyplot as plt
 
-from Subwavelength1D.classic import FiniteSWP1D
-
 
 def get_Q_matrix(z: int | float, x: int | float) -> np.ndarray:
     """Let u(x) = Ae^{ikx} + Be^{-ikx}. Then the Q matrix is defined as the matrix such that Q(z,x)@(A,B)^T = (u(x), u'(x))^T.
@@ -226,7 +224,7 @@ def propagation_matrix_block_function(
 
 
 def plot_propagation_eigenvalues(
-    fswp: FiniteSWP1D,
+    fswp,
     k_min: float = 1e-1,
     k_max: int = 5,
     n_pts: int = 100,
