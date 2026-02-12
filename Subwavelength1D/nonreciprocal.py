@@ -6,6 +6,7 @@ from Subwavelength1D.swp import (
 )
 
 import Utils.utils_propagation as utils_propagation
+from Utils.utils_propagation import _Q
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -214,7 +215,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         D, S = utils.sort_by_method(D, S, sorting)
         return D, S
 
-    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, symmetrised: bool = True):
+    def get_resonator_propagation_matrix(self, j, space_from_end: float = 1.0, subwavelength: bool = True, symmetrised: bool = True):
         if self.omega is None:
             raise ValueError("omega must be set, is currently None")
         if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
@@ -226,33 +227,35 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             p = utils_propagation.nonreciprocal_propagation_matrix_single(
                 l=self.l[-1],
                 s=space_from_end,
-                z=self.k_in[-1],
+                z=self.omega,
                 gamma=self.gammas[-1],
+                delta=self.delta,
                 symmetrised=symmetrised,
-                subwavelength=True
+                subwavelength=subwavelength
             )
         else:
             p = utils_propagation.nonreciprocal_propagation_matrix_single(
                 l=self.l[j],
                 s=self.s[j],
-                z=self.k_in[j],
+                z=self.omega,
                 gamma=self.gammas[j],
+                delta=self.delta,
                 symmetrised=symmetrised,
-                subwavelength=True
+                subwavelength=subwavelength
             )
         return p
 
     def compute_propagation_matrix(
-        self, space_from_end: float = 1.0, symmetrised: bool = True
+        self, space_from_end: float = 1.0, symmetrised: bool = True, subwavelength: bool = True
     ) -> np.ndarray:
         pm = np.eye(2)
         for j in range(self.N):
             p = self.get_resonator_propagation_matrix(
-                j=j, space_from_end=space_from_end, symmetrised=symmetrised)
+                j=j, space_from_end=space_from_end, subwavelength=subwavelength, symmetrised=symmetrised)
             pm = p @ pm
         return pm
 
-    def compute_Lyapunov_exponent(self, space_from_end=1, rescale_every=20, max_N=None, return_parts=False) -> float:
+    def compute_Lyapunov_exponent(self, space_from_end=1, subwavelength: bool = True, rescale_every=20, max_N=None, return_parts=False) -> float:
         """
         Computes the Lyapunov exponent for the finite subwavelength wave problem.
         The Lyapunov exponent is a measure of the exponential growth rate of the wave function.
@@ -270,7 +273,7 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
         gamma_li_sum = 0.0
         for j in range(max_N):
             p = self.get_resonator_propagation_matrix(
-                j=j, space_from_end=space_from_end, symmetrised=True)
+                j=j, space_from_end=space_from_end, symmetrised=True, subwavelength=subwavelength)
             pm = p @ pm
             gamma_li_sum += self.gammas[j] * self.l[j]
             if rescale_every is not None and ((j+1) % rescale_every == 0):
@@ -283,6 +286,84 @@ class NonReciprocalFiniteSWP1D(FiniteSWP1D):
             return log_norm_sum/max_N, 1/(2 * max_N) * gamma_li_sum
         else:
             return log_norm_sum/max_N - 1/(2 * max_N) * gamma_li_sum
+
+    def solve_u(self, alpha_0=None):
+        assert self.omega is not None, "omega must be set, is currently None"
+
+        alphas = np.zeros((self.N + 1, 2), dtype=complex)
+        aas = np.zeros((self.N, 2), dtype=complex)
+        if alpha_0 is None:
+            alphas[0] = [0.0, 1.0]
+        else:
+            alphas[0] = alpha_0
+
+        D = np.diag([1, self.delta])
+        Dinv = np.diag([1, 1/self.delta])
+
+        def _Xi(gamma, omega):
+            nu = np.sqrt(complex((gamma/2)**2-omega**2))
+            return -gamma / 2 + nu, -gamma / 2 - nu
+
+        for j in range(self.N):
+            # alpha outside to u inside
+            u_outside_m = _Q(
+                self.xim[j], 1j*self.omega, -1j*self.omega) @ alphas[j]
+            u_inside_m = D @ u_outside_m
+
+            # calculate a inside
+            xi1, xi2 = _Xi(self.gammas[j], self.omega)
+            aas[j] = np.linalg.inv(_Q(self.xim[j], xi1, xi2)) @ u_inside_m
+
+            # a inside to alpha outside
+            u_inside_p = _Q(self.xip[j], xi1, xi2) @ aas[j]
+            u_outside_p = Dinv @ u_inside_p
+            alphas[j+1] = np.linalg.inv(_Q(self.xip[j],
+                                        1j*self.omega, -1j*self.omega)) @ u_outside_p
+
+        self.alphas = alphas
+        self.aas = aas
+
+    def Gamma(self, x):
+        # Returns \int_0^x gamma(x') dx'
+        j = np.searchsorted(self.xi, x) - 1
+        if j % 2 == 0:
+            # Inside resonator
+            i = (j // 2)
+            xi1 = self.xi[j]
+            return np.sum(self.gammas[:i] * self.l[:i]) + self.gammas[i] * (x - xi1)
+        else:
+            # Outside resonator
+            i = ((j + 1) // 2)
+            xi1 = self.xi[j]
+            return np.sum(self.gammas[:i] * self.l[:i])
+
+    def u(self, x, return_inside=False):
+        assert self.aas is not None and self.alphas is not None, "Must call solve_u before calling u"
+
+        def _Xi(gamma, omega):
+            nu = np.sqrt(complex((gamma/2)**2-omega**2))
+            return -gamma / 2 + nu, -gamma / 2 - nu
+
+        # Find j such that self.xi[j] < x < self.xi[j+1]
+        j = np.searchsorted(self.xi, x) - 1
+        if j % 2 == 0:
+            # Inside resonator
+            i = (j // 2)
+            xi1, xi2 = _Xi(self.gammas[i], self.omega)
+            u = self.aas[i][0]*np.exp(xi1*x) + self.aas[i][1]*np.exp(xi2*x)
+            if return_inside:
+                return u, True
+            else:
+                return u
+        else:
+            # Outside resonator
+            i = ((j + 1) // 2)
+            u = self.alphas[i][0]*np.exp(1j*self.omega*x) + \
+                self.alphas[i][1]*np.exp(-1j*self.omega*x)
+            if return_inside:
+                return u, False
+            else:
+                return u
 
 
 class NonReciprocalPeriodicSWP1D(PeriodicSWP1D):

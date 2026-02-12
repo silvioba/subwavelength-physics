@@ -13,7 +13,14 @@ def get_Q_matrix(z: int | float, x: int | float) -> np.ndarray:
     Returns:
         np.ndarray: The Q matrix
     """
-    return np.array([[np.exp(1j * z * x), np.exp(-1j * z * x)], [1j * z * np.exp(1j * z * x), -1j * z * np.exp(-1j * z * x)]])
+    return _Q(x, 1j * z, -1j * z)
+
+
+def _Q(x, r1, r2):
+    return np.array([
+        [np.exp(r1 * x), np.exp(r2 * x)],
+        [r1 * np.exp(r1 * x), r2 * np.exp(r2 * x)]
+    ])
 
 
 def propagation_matrix_free_space(
