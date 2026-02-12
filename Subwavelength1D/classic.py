@@ -437,6 +437,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         self.aas = aas
 
     def u(self, x, return_inside=False):
+        assert self.aas is not None and self.alphas is not None, "Must call solve_u before calling u"
         # Find j such that self.xi[j] < x < self.xi[j+1]
         j = np.searchsorted(self.xi, x) - 1
         if j % 2 == 0:
