@@ -36,6 +36,8 @@ plt.rcParams.update(settings.matplotlib_params)
 def visualize_spectrum(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=False, axes=None):
     if axes is None:
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    else:
+        fig = axes[0].get_figure()
     if D is None or S is None:
         D, S = sp.compute_sorted_eigs_capacitance_matrix()
     assert np.allclose(np.imag(D), 0), "Eigenvalues are not real"
