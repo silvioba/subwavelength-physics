@@ -108,8 +108,10 @@ def visualize_spectrum_complex(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=
         sv = np.abs(S[:, j])
         axes[1].semilogy(sv, 'k-')
     else:
-        sv = np.real(S[:, j])
-        axes[1].plot(sv, 'k-')
+        sv = S[:, j]
+        axes[1].plot(sv.real, 'r-')
+        axes[1].plot(sv.imag, 'b-')
+    return fig, axes
 
 
 def visualize_spectrum_with_winding(dp: disordered.DisorderedNonReciprocalFiniteSWP1D, j,
