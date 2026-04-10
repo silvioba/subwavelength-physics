@@ -339,6 +339,7 @@ class NonReciprocalPeriodicSWP3D(ClassicPeriodicFWP3D):
         self.gamma = float(gamma)
         if not np.allclose(self.radii, self.radii[0]):
             raise ValueError("NonReciprocalPeriodicSWP3D requires all radii to be equal")
+        self._gauge_harmonics_cache = {}
 
     def __str__(self):
         return (
@@ -353,7 +354,8 @@ class NonReciprocalPeriodicSWP3D(ClassicPeriodicFWP3D):
         self,
         alpha: float,
         N_multipole: int = 2,
-        N_quad: int = 200,
+        N_quad: int = 100,
+        method: str = 'lattice_sums',
     ) -> np.ndarray:
         """Compute the gauge quasiperiodic capacitance matrix Ĉ^{α,γ}.
 
@@ -364,18 +366,37 @@ class NonReciprocalPeriodicSWP3D(ClassicPeriodicFWP3D):
             alpha: Bloch wave number.
             N_multipole: Maximum multipole order.
             N_quad: Quadrature points for gauge harmonics.
+            method: 'lattice_sums' (default) or 'epstein' (monopole, gamma=0 only).
 
         Returns:
             np.ndarray: Complex N x N gauge capacitance matrix.
         """
+        # Auto-optimize: use Epstein for gamma=0 (exact monopole, much faster)
+        if method == 'lattice_sums' and abs(self.gamma) < 1e-15 and abs(alpha) > 1e-15:
+            method = 'epstein'
+
+        if method == 'epstein':
+            if abs(self.gamma) > 1e-15:
+                raise ValueError(
+                    "method='epstein' only supports gamma=0. "
+                    "For non-reciprocal systems, use method='lattice_sums'."
+                )
+            from Subwavelength3D import epstein
+            return epstein.compute_capacitance_matrix_epstein(
+                self.centers, self.radii, self.L, alpha)
+
         R = self.radii[0]
         N_block = N_multipole ** 2
 
         S = self.compute_single_layer_potential_matrix(
             N_multipole=N_multipole, alpha=alpha)
 
-        # Chain-axis gauge harmonics: exp(gamma * R * cos(theta))
-        f1 = compute_gauge_harmonics_chain_axis(self.gamma, R, N_multipole, N_quad)
+        # Chain-axis gauge harmonics: cached since they don't depend on alpha
+        cache_key = (self.gamma, R, N_multipole, N_quad)
+        if cache_key not in self._gauge_harmonics_cache:
+            self._gauge_harmonics_cache[cache_key] = compute_gauge_harmonics_chain_axis(
+                self.gamma, R, N_multipole, N_quad)
+        f1 = self._gauge_harmonics_cache[cache_key]
 
         f2 = np.zeros(N_block, dtype=complex)
         f2[0] = np.sqrt(4 * np.pi)

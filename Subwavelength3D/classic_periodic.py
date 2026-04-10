@@ -23,7 +23,7 @@ from mpmath import polylog
 from mpmath import mp
 from Subwavelength3D.swp import SWP3D
 
-from typing import Literal, Callable, Tuple, Self, List, Dict
+from typing import Literal, Callable, Tuple, List, Dict
 from typing_extensions import override
 
 from scipy.special import spherical_jn, hankel1, sph_harm
@@ -229,37 +229,63 @@ class ClassicPeriodicFWP3D(SWP3D):
                                         * spherical_jn(l, self.k0 * self.radii[i])
                                     )
                         else:
-                            # Off-diagonal: use addition theorem for distance r_ij
-                            # NOTE: For N>1 per cell, this is approximate.
-                            # See the plan doc for known issues with this block.
-                            rp = abs(self.centers[i][0] - self.centers[j][0])
-                            for lp in range(N_multipole):
-                                for mp in range(-lp, lp + 1):
-                                    S[
-                                        flat_index(i, N_multipole, l, m),
-                                        flat_index(j, N_multipole, lp, mp),
-                                    ] = (
-                                        c[j] * self.k0
-                                        * B_coefficient(alpha, l, m, lp, mp,
-                                                        self.L, self.k0, N_multipole)
-                                        * spherical_jn(lp, self.k0 * self.radii[j])
-                                        * spherical_jn(l, self.k0 * self.radii[i])
-                                    )
+                            # Off-diagonal: direct + periodic images at distance r_ij
+                            # For monopole (l=lp=0), use Epstein zeta for correct
+                            # intra-cell distance handling. For higher multipoles,
+                            # the B_coefficient approximation is used (only exact
+                            # when all resonators are at the same position mod L).
+                            if N_multipole == 1:
+                                # Monopole: use Epstein zeta for exact result
+                                from epsteinlib import epstein_zeta as _epstein_zeta
+                                rp = self.centers[i][0] - self.centers[j][0]
+                                A_lat = np.array([[self.L]])
+                                y_ep = np.array([-alpha / (2 * np.pi)])
+                                x_ij = np.array([rp])
+                                S[
+                                    flat_index(i, N_multipole, 0, 0),
+                                    flat_index(j, N_multipole, 0, 0),
+                                ] = -self.radii[j]**2 * _epstein_zeta(1.0, A_lat, x_ij, y_ep)
+                            else:
+                                rp = abs(self.centers[i][0] - self.centers[j][0])
+                                for lp in range(N_multipole):
+                                    for mp in range(-lp, lp + 1):
+                                        S[
+                                            flat_index(i, N_multipole, l, m),
+                                            flat_index(j, N_multipole, lp, mp),
+                                        ] = (
+                                            c[j] * self.k0
+                                            * B_coefficient(alpha, l, m, lp, mp,
+                                                            self.L, self.k0, N_multipole)
+                                            * spherical_jn(lp, self.k0 * self.radii[j])
+                                            * spherical_jn(l, self.k0 * self.radii[i])
+                                        )
         return S
 
-    def get_capacitance_matrix(self, alpha: float, N_multipole: int = 2) -> np.ndarray:
+    def get_capacitance_matrix(
+        self,
+        alpha: float,
+        N_multipole: int = 2,
+        method: Literal['lattice_sums', 'epstein'] = 'lattice_sums',
+    ) -> np.ndarray:
         """Compute the quasiperiodic capacitance matrix C(alpha).
-
-        Solves S(alpha) @ psi_j = chi_j for each resonator j, then extracts
-        the monopole component to form C[i,j].
 
         Args:
             alpha: Bloch wave number.
             N_multipole: Maximum multipole order.
+            method: Computation method.
+                'lattice_sums' (default): polylogarithm-based lattice sums.
+                'epstein': Epstein zeta function via epsteinlib (monopole only,
+                    requires alpha != 0). Faster and more accurate for intra-cell
+                    distances with N > 1 per cell.
 
         Returns:
             np.ndarray: Complex N x N capacitance matrix.
         """
+        if method == 'epstein':
+            from Subwavelength3D import epstein
+            return epstein.compute_capacitance_matrix_epstein(
+                self.centers, self.radii, self.L, alpha)
+
         S = self.compute_single_layer_potential_matrix(
             N_multipole=N_multipole, alpha=alpha)
         C = np.zeros((self.N, self.N), dtype=complex)
@@ -273,6 +299,61 @@ class ClassicPeriodicFWP3D(SWP3D):
                 C[i, j] = -np.sqrt(4 * np.pi) * self.radii[i]**2 * y[i * N_multipole**2]
         return C
 
-    def get_generalised_capacitance_matrix(self, alpha: float, **kwargs) -> np.ndarray:
+    def get_toeplitz_coefficients(
+        self,
+        k: int,
+        N_quad: int = 100,
+        method: Literal['lattice_sums', 'epstein'] = 'lattice_sums',
+        **kwargs,
+    ) -> np.ndarray:
+        """Compute Toeplitz coefficients C(m) for m = -k, ..., 0, ..., k.
+
+        The mth coefficient is the Fourier coefficient of the capacitance
+        matrix symbol:
+
+            C(m) = L/(2π) ∫_{-π/L}^{π/L} Ĉ(α) e^{-iαmL} dα
+
+        where Ĉ(α) = get_capacitance_matrix(α) is the Bloch capacitance
+        matrix and L is the lattice period.
+
+        Args:
+            k: Maximum Fourier index. Returns coefficients for m in
+                {-k, ..., 0, ..., k} (total 2k+1 coefficients).
+            N_quad: Number of quadrature points for the trapezoidal rule.
+            method: Method forwarded to get_capacitance_matrix.
+            **kwargs: Additional keyword arguments forwarded to
+                get_capacitance_matrix.
+
+        Returns:
+            np.ndarray: Array of shape (2k+1, N, N) where result[j]
+                is the capacitance Toeplitz coefficient C(m) with
+                m = -k + j. For N=1, the shape is (2k+1, 1, 1).
+        """
+        L = self.L
+        alphas = np.linspace(-np.pi / L, np.pi / L, N_quad, endpoint=False)
+        dalpha = 2 * np.pi / L / N_quad
+
+        ms = np.arange(-k, k + 1)
+        coeffs = np.zeros((2 * k + 1, self.N, self.N), dtype=complex)
+
+        # Evaluate capacitance matrices at all quadrature points
+        C_samples = np.array([
+            self.get_capacitance_matrix(alpha=a, method=method, **kwargs)
+            for a in alphas
+        ])  # (N_quad, N, N)
+
+        # Trapezoidal rule for each Fourier index
+        for j, m in enumerate(ms):
+            phases = np.exp(-1j * alphas * m * L)  # (N_quad,)
+            coeffs[j] = L / (2 * np.pi) * dalpha * np.einsum(
+                'q,qij->ij', phases, C_samples
+            )
+
+        return coeffs
+
+    def get_generalised_capacitance_matrix(
+        self, alpha: float, method: str = 'lattice_sums', **kwargs
+    ) -> np.ndarray:
         """Compute V @ C(alpha)."""
-        return self.get_material_matrix() @ self.get_capacitance_matrix(alpha=alpha, **kwargs)
+        return self.get_material_matrix() @ self.get_capacitance_matrix(
+            alpha=alpha, method=method, **kwargs)
