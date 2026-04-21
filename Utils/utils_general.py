@@ -74,9 +74,20 @@ def mullers_method(f, x0, x1, x2, tol=1e-7, max_iter=100):
     return p
 
 
-def find_roots_muller(f, z0, n_roots, perturbation=1e-2):
+def find_roots_muller(f, z0, n_roots, perturbation=1e-2, tol=1e-7):
     """
     Find n_roots of f starting near z0 using Muller's method with deflation.
+
+    Args:
+        f: Function to find roots of.
+        z0: Initial guess for the first root.
+        n_roots: Number of roots to find.
+        perturbation: Half-width used to generate the three Muller starting
+            points and to offset the seed for each successive root.
+        tol: Convergence tolerance passed to :func:`mullers_method`; the
+            iteration stops when the step size |h| falls below this value.
+            Default 1e-7. Tighten to e.g. 1e-13 when high root accuracy is
+            required (e.g. verifying theoretical error rates).
     """
     roots = []
 
@@ -94,7 +105,7 @@ def find_roots_muller(f, z0, n_roots, perturbation=1e-2):
         p1 = current_z + perturbation
         p2 = current_z - perturbation
 
-        root = mullers_method(deflated_f, p0, p1, p2)
+        root = mullers_method(deflated_f, p0, p1, p2, tol=tol)
         roots.append(root)
 
         # Update starting point for next root (simple heuristic: move slightly away)
