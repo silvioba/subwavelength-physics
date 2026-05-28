@@ -59,6 +59,150 @@ def create_screen_SWP3D(Nx, Ny, sep_x=1.0, sep_y=1.0, radius=1.0):
     return ClassicFiniteSWP3D(radii=radii, centers=centers)
 
 
+def create_double_screen_SWP3D(Nx, Ny, sep_x=1.0, sep_y=1.0, sep_z=1.0, radius=1.0):
+    center_sep_x = sep_x + 2*radius
+    center_sep_y = sep_y + 2*radius
+    center_sep_z = sep_z + 2*radius
+
+    centers = np.zeros((Nx, Ny, 2, 3))
+
+    for x in range(Nx):
+        for y in range(Ny):
+            centers[x, y, 0] = [x*center_sep_x,
+                                y*center_sep_y, 0]
+            centers[x, y, 1] = [x*center_sep_x,
+                                y*center_sep_y, center_sep_z]
+
+    centers_flat = centers.reshape((-1, 3))
+    radii_flat = np.array([radius]*(Nx*Ny*2))
+    return ClassicFiniteSWP3D(radii=radii_flat, centers=centers_flat)
+
+
+def periodic_2D_constructor(N1, N2, v1=None, v2=None, unit_cell=None):
+    """Constructs a periodic 2D lattice of 3D resonators.
+
+    Args:
+        N1 (int): Number of unit cells along the v1 direction.
+        N2 (int): Number of unit cells along the v2 direction.
+        v1 (np.ndarray | int | float | None): Lattice vector for the first direction.
+            If scalar, interpreted as (v1, 0, 0). Defaults to (3, 0, 0).
+        v2 (np.ndarray | int | float | None): Lattice vector for the second direction.
+            If scalar, interpreted as (0, v2, 0). Defaults to (0, 3, 0).
+        unit_cell (tuple | None): Unit cell definition as a tuple of
+            ((x1, y1, z1), r1), ..., ((xd, yd, zd), rd)) pairs where
+            (xi, yi, zi) is the resonator offset within the unit cell and ri
+            is the resonator radius. Defaults to a single resonator at the
+            origin with radius 1.
+
+    Returns:
+        ClassicFiniteSWP3D: The assembled periodic system.
+    """
+    if v1 is None:
+        v1 = np.array([3, 0, 0])
+    elif isinstance(v1, (int, float)):
+        v1 = np.array([v1, 0, 0])
+    else:
+        v1 = np.asarray(v1, dtype=float)
+    if v2 is None:
+        v2 = np.array([0, 3, 0])
+    elif isinstance(v2, (int, float)):
+        v2 = np.array([0, v2, 0])
+    else:
+        v2 = np.asarray(v2, dtype=float)
+    if unit_cell is None:
+        unit_cell = (((0, 0, 0), 1.0),)
+
+    unit_cell_offset = np.array(
+        [np.asarray(offset, dtype=float) for offset, _ in unit_cell])
+    unit_cell_radii = np.array([r for _, r in unit_cell])
+    N_unit = len(unit_cell)
+
+    centers = np.zeros((N1, N2, N_unit, 3))
+    radii = np.zeros((N1, N2, N_unit))
+    for i in range(N1):
+        for j in range(N2):
+            centers[i, j] = unit_cell_offset + i*v1 + j*v2
+            radii[i, j] = unit_cell_radii
+
+    centers_flat = centers.reshape((-1, 3))
+    radii_flat = radii.reshape((-1,))
+    return ClassicFiniteSWP3D(radii=radii_flat, centers=centers_flat)
+
+
+def create_linear_blockdisordered_SWP3D(blocks, idxs) -> ClassicFiniteSWP3D:
+    radii = []
+    centers = []
+    current_z = 0.0
+    for i in idxs:
+        block_len = len(blocks[i][0])
+        for j in range(block_len):
+            r = blocks[i][0][j]
+            s = blocks[i][1][j]
+            radii.append(r)
+            centers.append((0.0, 0.0, current_z))
+            current_z += s
+
+    return ClassicFiniteSWP3D(centers=np.array(centers), radii=np.array(radii))
+
+
+def blockdisordered_2D_constructor(N1, N2, v1, v2, blocks, weights=None, seed=42):
+    """Constructs a disordered 2D lattice of 3D resonators by randomly assigning blocks to unit cells.
+
+    At each lattice site (i, j), a block is randomly chosen from the provided list
+    and its resonators are placed at the corresponding offsets shifted by i*v1 + j*v2.
+
+    Args:
+        N1 (int): Number of unit cells along the v1 direction.
+        N2 (int): Number of unit cells along the v2 direction.
+        v1 (np.ndarray | int | float): Lattice vector for the first direction.
+            If scalar, interpreted as (v1, 0, 0).
+        v2 (np.ndarray | int | float): Lattice vector for the second direction.
+            If scalar, interpreted as (0, v2, 0).
+        blocks (list): List of block definitions. Each block is a tuple of
+            ((x1, y1, z1), r1), ..., ((xd, yd, zd), rd)) pairs where
+            (xi, yi, zi) is the resonator offset within the unit cell and ri
+            is the resonator radius.
+        weights (list[float] | None): Probabilities for choosing each block.
+            Must sum to 1 and have the same length as blocks. If None, uniform
+            probabilities are used.
+        seed (int): Random seed for reproducibility.
+
+    Returns:
+        ClassicFiniteSWP3D: The assembled disordered system.
+    """
+    if isinstance(v1, (int, float)):
+        v1 = np.array([v1, 0, 0])
+    else:
+        v1 = np.asarray(v1, dtype=float)
+    if isinstance(v2, (int, float)):
+        v2 = np.array([0, v2, 0])
+    else:
+        v2 = np.asarray(v2, dtype=float)
+
+    if weights is not None:
+        assert len(weights) == len(
+            blocks), "len(weights) must equal len(blocks)"
+        assert np.isclose(sum(weights), 1), "weights must sum to 1"
+
+    np.random.seed(seed)
+    block_indices = np.random.choice(len(blocks), size=(N1, N2), p=weights)
+
+    centers = []
+    radii = []
+    for i in range(N1):
+        for j in range(N2):
+            origin = i * v1 + j * v2
+            block = blocks[block_indices[i, j]]
+            for offset, r in block:
+                centers.append(origin + np.asarray(offset, dtype=float))
+                radii.append(r)
+
+    return ClassicFiniteSWP3D(
+        radii=np.array(radii),
+        centers=np.array(centers).reshape((-1, 3)),
+    )
+
+
 def get_capacitance_like_matrix(N, alpha=1, p=0.5, seed=42, normed=True, fill_diagonal=True):
     np.random.seed(seed)
     C = np.zeros((N, N), dtype=float)
