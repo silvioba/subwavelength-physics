@@ -11,12 +11,14 @@ Maintainers of the repository are:
 * Alexander Uhlmann (alexander.uhlmann at sam.math.ethz.ch)
 
 You can cite this repo as
+----
 @software{barandun.uhlmannSubwavelength,
   title = {Subwavelength Physics},
   author = {Barandun, Silvio and Uhlmann, Alexander},
   url = {https://github.com/silvioba/subwavelength-physics},
   version = {v3.0}
 }
+----
 
 === Optional dependencies
 
@@ -60,11 +62,11 @@ If `epsteinlib` is not installed, importing `Subwavelength3D.epstein` raises an 
 === Project Structure
 ----
 .
-├── Demos                                      # Notebooks that should help unserstand using the library
+├── Demos                                      # Demo Notebooks
 │   ├── 1D.ipynb
 │   └── 3D.ipynb
 ├── Subwavelength1D                            # 1D code
-│   ├── paper_plots                            # Scripts for plots
+│   ├── paper_plots                            
 │   ├── classic.py
 │   ├── disordered.py
 │   ├── exceptional_point.py
@@ -76,19 +78,19 @@ If `epsteinlib` is not installed, importing `Subwavelength3D.epstein` raises an 
 │   ├── swp.py
 │   └── time_modulated.py
 ├── Subwavelength3D                             # 3D code
-│   ├── classic_finite.py                      # Classical finite systems (multipole expansion)
-│   ├── classic_periodic.py                    # Classical periodic systems (lattice sums)
-│   ├── nonreciprocal.py                       # Non-reciprocal finite and periodic systems (v3.0)
-│   ├── epstein.py                             # Epstein zeta acceleration (monopole, optional epsteinlib)
-│   ├── fmm.py                                 # Fast multipole method acceleration
+│   ├── classic_finite.py                      
+│   ├── classic_periodic.py                    
+│   ├── nonreciprocal.py                       
+│   ├── epstein.py                             
+│   ├── fmm.py                                 
 │   ├── swp.py
 │   └── theory.adoc
 ├── tests
 │   ├── test_3D_finite.py
 │   ├── test_3D_periodic.py
-│   ├── test_3D_nonreciprocal.py               # Tests for NonReciprocalFiniteSWP3D (v3.0)
-│   ├── test_3D_nonreciprocal_periodic.py      # Tests for NonReciprocalPeriodicSWP3D (v3.0)
-│   ├── test_3D_periodic_epstein.py            # Epstein zeta vs lattice sum consistency (v3.0)
+│   ├── test_3D_nonreciprocal.py               
+│   ├── test_3D_nonreciprocal_periodic.py      
+│   ├── test_3D_periodic_epstein.py            
 │   ├── test_classic.py
 │   ├── test_nonreciprocal.py
 │   └── test_utils.py
