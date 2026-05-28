@@ -8,8 +8,9 @@ contourpy==1.2.1
 cycler==0.12.1
 debugpy==1.8.1
 decorator==5.1.1
+epsteinlib
 executing==2.0.1
-fmm3dpy @ file:///Users/auhlmann/Polybox/PhD/Coding/FMM3D/python
+# fmm3dpy: install from source, see README.adoc for instructions
 fonttools==4.51.0
 idna==3.10
 iniconfig==2.1.0

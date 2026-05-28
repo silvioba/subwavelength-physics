@@ -1,3 +1,5 @@
+"""Base classes for one-dimensional subwavelength resonator systems."""
+
 import numpy as np
 import scipy as sci
 
@@ -7,7 +9,6 @@ from typing import Literal, Callable, Tuple, Self, List
 import Utils.utils_general as utils
 
 import matplotlib.pyplot as plt
-import Utils.settings as settings
 
 
 class SWP1D:
@@ -76,7 +77,7 @@ class SWP1D:
         if omega:
             self.set_omega(omega)
         else:
-            self.k_in, self.k_in = None, None
+            self.k_in, self.k_out = None, None
 
         self.uin = uin
         self.duin = duin

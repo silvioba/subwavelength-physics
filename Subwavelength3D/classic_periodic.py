@@ -20,13 +20,11 @@ import numpy as np
 import scipy as sci
 
 from mpmath import polylog
-from mpmath import mp
 from Subwavelength3D.swp import SWP3D
 
-from typing import Literal, Callable, Tuple, List, Dict
-from typing_extensions import override
+from typing import Literal
 
-from scipy.special import spherical_jn, hankel1, sph_harm
+from scipy.special import spherical_jn, hankel1
 from sympy.physics.wigner import wigner_3j
 
 from math import factorial

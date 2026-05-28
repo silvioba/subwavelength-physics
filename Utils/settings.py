@@ -1,3 +1,5 @@
+"""Shared matplotlib settings and figure size constants."""
+
 from dataclasses import dataclass
 
 

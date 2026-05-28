@@ -1,3 +1,5 @@
+"""Disordered 1D subwavelength systems built from random block sequences."""
+
 import numpy as np
 import scipy as sci
 
@@ -22,6 +24,8 @@ plt.rcParams.update(settings.matplotlib_params)
 
 
 class DisorderedCommon(FiniteSWP1D):
+    """Mixin providing block-based construction for disordered systems."""
+
     @classmethod
     def from_blocks(
         cls, blocks: List[Tuple[Tuple[int | float]]], idxs: List[int], **params

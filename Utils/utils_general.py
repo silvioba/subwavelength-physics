@@ -1,4 +1,7 @@
+"""General utilities: eigenvalue sorting, root-finding, and eigenvector tracking."""
+
 from functools import wraps
+import warnings
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -70,7 +73,7 @@ def mullers_method(f, x0, x1, x2, tol=1e-7, max_iter=100):
 
         x0, x1, x2 = x1, x2, p
 
-    print("Muller's method did not converge")
+    warnings.warn("Muller's method did not converge")
     return p
 
 
@@ -213,12 +216,12 @@ class EigenvectorPathTracker:
     """
 
     def __init__(self, initial_sorting_method="eva_real"):
-        self.inital_sorting_method = initial_sorting_method
+        self.initial_sorting_method = initial_sorting_method
         self.D = None
         self.S = None
 
     def _initial(self, D: np.array, S: np.array):
-        D, S = sort_by_method(D, S, self.inital_sorting_method)
+        D, S = sort_by_method(D, S, self.initial_sorting_method)
         self.D, self.S = D.copy(), S.copy()
         return D, S
 
