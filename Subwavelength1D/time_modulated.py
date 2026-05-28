@@ -1,3 +1,5 @@
+"""Time-modulated 1D subwavelength systems with Floquet-Bloch theory."""
+
 import numpy as np
 import scipy as sci
 from scipy.sparse.linalg import eigs

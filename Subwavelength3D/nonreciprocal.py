@@ -16,11 +16,8 @@ asymmetry Ĉ(−α) ≠ Ĉ(α) needed for the skin effect.
 import numpy as np
 import scipy as sci
 
-from Subwavelength3D.classic_finite import ClassicFiniteSWP3D, flat_index
-from Subwavelength3D.classic_periodic import (
-    ClassicPeriodicFWP3D,
-    get_indicator_function_spherical_harmonics_expansion,
-)
+from Subwavelength3D.classic_finite import ClassicFiniteSWP3D
+from Subwavelength3D.classic_periodic import ClassicPeriodicFWP3D
 import Utils.utils_general as utils
 
 from typing import Literal, Tuple

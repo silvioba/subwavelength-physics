@@ -1,27 +1,17 @@
+"""Classical finite 3D subwavelength systems using multipole expansions."""
+
 import numpy as np
 import scipy as sci
 
-from mpmath import polylog
-from mpmath import mp
 from Subwavelength3D.swp import SWP3D
 import Subwavelength3D.fmm as fmm
-from Utils.settings import settings
 import Utils.utils_general as utils
 
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
-from matplotlib.colors import LinearSegmentedColormap, LogNorm
-
-from typing import Literal, Callable, Tuple, Self, List, Dict
+from typing import Literal, Tuple, Self
 from typing_extensions import override
 
 from scipy.special import spherical_jn, hankel1, sph_harm
 from sympy.physics.wigner import wigner_3j
-from scipy.linalg import block_diag
-
-from math import factorial
-
-from joblib import Parallel, delayed  # For parallelism
 
 from functools import cache
 
@@ -200,6 +190,7 @@ def S_coefficient_diagonal(l: int, m: int, k: float, Ri: float):
 
 
 class ClassicFiniteSWP3D(SWP3D):
+    """Classical finite 3D system of spherical resonators with multipole expansions."""
 
     def __init__(self, **pars):
         super().__init__(**pars)
@@ -211,7 +202,17 @@ class ClassicFiniteSWP3D(SWP3D):
     def get_SSH(
         cls, i: int, r: float, s1: float | int, s2: float | int, **params
     ) -> Self:
-        """ """
+        """Create an SSH-type chain with alternating spacings s1, s2.
+
+        Args:
+            i: Number of unit cells on each side of the central defect resonator.
+            r: Resonator radius (uniform).
+            s1: First spacing between resonator surfaces.
+            s2: Second spacing between resonator surfaces.
+
+        Returns:
+            ClassicFiniteSWP3D with 4*i + 1 resonators along the z-axis.
+        """
         if i < 1:
             raise ValueError("i must be a positive integer")
         if s1 <= 0 or s2 <= 0:
@@ -410,6 +411,7 @@ class ClassicFiniteSWP3D(SWP3D):
         return np.real(C)
 
     def estimate_capacitance_computation_time(self):
+        """Estimate wall-clock seconds for a brute-force capacitance computation (empirical fit)."""
         coeffs = np.array([5.85838395e-05, -1.30743899e-02,  1.07448534e+00])
         return np.polyval(coeffs, self.N)
 
@@ -422,6 +424,20 @@ class ClassicFiniteSWP3D(SWP3D):
             N_jobs=12,
             verbose=False,
     ) -> np.ndarray:
+        """Compute the N x N capacitance matrix.
+
+        Args:
+            N_multipole: Multipole truncation order (1 = monopole, 2 = dipole).
+            method: 'fmm' (fast multipole, N_multipole <= 2), 'colinear' (brute-force, chain on z-axis),
+                or 'general' (brute-force, arbitrary geometry).
+            k0: Wavenumber for the single-layer potential.
+            eps: FMM tolerance (only used with method='fmm').
+            N_jobs: Number of parallel jobs for FMM.
+            verbose: Print caching information.
+
+        Returns:
+            Real N x N capacitance matrix.
+        """
         parameters = {
             "N_multipole": N_multipole,
             "method": method,
@@ -440,7 +456,8 @@ class ClassicFiniteSWP3D(SWP3D):
                 C = self._compute_capactance_matrix_classical(
                     N_multipole=N_multipole, colinear=False, k0=k0)
             elif method == 'fmm':
-                assert N_multipole <= 2, "FMM method only supports up to dipole (N_multipole=2)"
+                if N_multipole > 2:
+                    raise ValueError("FMM method only supports up to dipole (N_multipole=2)")
                 dipole = (N_multipole == 2)
                 C = fmm.compute_capacitance_matrix_accelerated(
                     self.centers, self.radii, eps=eps, dipole=dipole, n_jobs=N_jobs, verbose=verbose

@@ -1,3 +1,5 @@
+"""Classical (reciprocal) finite and periodic 1D subwavelength resonator systems."""
+
 import numpy as np
 import scipy as sci
 from Subwavelength1D.swp import (
@@ -31,14 +33,14 @@ def check_parameters_inconsistencies(fwp: FiniteSWP1D):
     if not (np.abs(fwp.k_in - fwp.omega / fwp.v_in) < 1e-6).all():
         raise ValueError("k_in does not equal omega / v_in")
     if not (np.abs(fwp.k_out - fwp.omega / fwp.v_out) < 1e-6).all():
-        raise ValueError("k_in does not equal omega / v_in")
+        raise ValueError("k_out does not equal omega / v_out")
 
 
 class ClassicFiniteSWP1D(FiniteSWP1D):
-    FiniteSWP1D.__doc__ + """
-    Base class for acoustic subwavelength wave problem. Subclass of OneDimensionalFiniteSWLProblem
+    """Classical finite 1D subwavelength resonator system.
 
-    Initially modelled on [1] (see README), subsequently extended
+    Extends FiniteSWP1D with reciprocal acoustic physics: capacitance matrix,
+    eigenvalue computation, propagation matrices, and wave solution methods.
     """
 
     def __init__(self, **pars):
@@ -400,12 +402,16 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Q0 = utils_propagation.get_Q_matrix(self.k_out, 0)
         QL = utils_propagation.get_Q_matrix(self.k_out, self.L)
         M = np.linalg.inv(QL) @ pm @ Q0
-        print(M)
         Rtot = - M[1, 0] / M[1, 1]
         Ttot = M[0, 0] + M[0, 1] * Rtot
         return np.abs(Rtot), np.abs(Ttot)
 
     def solve_u(self, alpha_0=None):
+        """Compute the wave solution coefficients by propagating through all resonators.
+
+        Args:
+            alpha_0: Initial exterior coefficients [forward, backward]. Defaults to [0, 1].
+        """
         assert self.omega is not None, "omega must be set, is currently None"
 
         alphas = np.zeros((self.N + 1, 2), dtype=complex)
@@ -437,6 +443,15 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         self.aas = aas
 
     def u(self, x, return_inside=False):
+        """Evaluate the wave solution at position x.
+
+        Args:
+            x: Position at which to evaluate.
+            return_inside: If True, also return whether x is inside a resonator.
+
+        Returns:
+            Complex wave amplitude, or (amplitude, is_inside) if return_inside is True.
+        """
         assert self.aas is not None and self.alphas is not None, "Must call solve_u before calling u"
         # Find j such that self.xi[j] < x < self.xi[j+1]
         j = np.searchsorted(self.xi, x) - 1

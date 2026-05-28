@@ -1,3 +1,5 @@
+"""Floquet-Bloch transform, generalised Brillouin zone, and Laurent polynomial utilities."""
+
 import numpy as np
 from typing import Tuple
 

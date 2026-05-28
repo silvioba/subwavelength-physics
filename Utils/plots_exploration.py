@@ -1,3 +1,5 @@
+"""Visualization utilities for spectra, eigenvectors, and band structures."""
+
 import numpy as np
 import scipy as sci
 
@@ -11,15 +13,14 @@ import matplotlib.cm as cm
 
 from Utils.settings import settings as settings
 
-from Utils.utils_general import *
+from Utils.utils_general import sort_by_eva_abs
 import Utils.utils_propagation as utils_propagation
 
 import Subwavelength1D.swp as swp
 import Subwavelength1D.classic as classic
 import Subwavelength3D.classic_finite as classic_finite_3D
 import Subwavelength1D.disordered as disordered
-from Subwavelength1D.metaatom import *
-from Subwavelength1D.quasiperiodic import *
+from Subwavelength1D.disordered import DisorderedClassicFiniteSWP1D
 
 from typing import Literal, Callable, Tuple, Self, List
 from typing_extensions import override
@@ -28,8 +29,6 @@ import copy
 from tqdm import tqdm
 
 
-from itertools import product
-from collections import deque
 plt.rcParams.update(settings.matplotlib_params)
 
 
@@ -149,7 +148,6 @@ def visualize_spectrum_with_blockcolors(sp: DisorderedClassicFiniteSWP1D, j, sem
     axes[0].plot(D_cut, 'k.')
     j_cut = len(D_cut) - j
     axes[0].plot(j_cut, D_cut[j_cut], 'ro')
-    print("Lambda:", D_cut[j_cut])
 
     color_list = ["blue", "red", "green"]
     cc = [

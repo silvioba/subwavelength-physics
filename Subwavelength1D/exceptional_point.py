@@ -1,3 +1,5 @@
+"""Systems with complex velocities near exceptional points."""
+
 import numpy as np
 import scipy as sci
 from scipy.linalg import null_space, pinv
@@ -22,6 +24,8 @@ from Utils.utils_general import *
 
 
 class EPArrayClassicFiniteSWP1D(ClassicFiniteSWP1D):
+    """Classical system with complex velocities parametrised near exceptional points."""
+
     def __init__(self, N_cells, ep_idx=0, eps=0, **kwargs):
         self.N_cells = N_cells
         self.ep_idx = ep_idx
