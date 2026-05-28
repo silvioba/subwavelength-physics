@@ -15,11 +15,13 @@ You can cite this repo as
   title = {Subwavelength Physics},
   author = {Barandun, Silvio and Uhlmann, Alexander},
   url = {https://github.com/silvioba/subwavelength-physics},
-  version = {v2.0}
+  version = {v3.0}
 }
 
-=== FMM
-@auhlmann developed a great idea on how to make the 3D code faster using the fast multiple method (FMM). We build this into the v2 of the code. FMM needs a good library to run, which python does not provide out of the box. Here below you find a step-by-step guide on how to get this to work. The indications are for linux/ubuntu shell, but it should not be too different on other devices.
+=== Optional dependencies
+
+==== FMM
+@auhlmann developed a great idea on how to make the 3D code faster using the fast multipole method (FMM). This was introduced in v2 and is still available in v3. FMM needs a good library to run, which python does not provide out of the box. Here below you find a step-by-step guide on how to get this to work. The indications are for linux/ubuntu shell, but it should not be too different on other devices.
 
 . Create a python3.11 virtual environment
 +
@@ -45,6 +47,16 @@ source venv/bin/activate
 
 . Now you need the python wrapper. To do this run `make python` from the same dir. You probably need also to run `sudo apt install python3.11-dev build-essential gfortran` before this step. Now you should be able to run `python python/test/test_hfmm.py`
 
+==== Epstein zeta (v3.0)
+`Subwavelength3D/epstein.py` provides a faster monopole-only quasiperiodic capacitance matrix via the Epstein zeta function. It requires the `epsteinlib` package:
+
+[source,shell]
+----
+pip install epsteinlib
+----
+
+If `epsteinlib` is not installed, importing `Subwavelength3D.epstein` raises an `ImportError` with installation instructions. All other 3D functionality is unaffected.
+
 === Project Structure
 ----
 .
@@ -64,14 +76,19 @@ source venv/bin/activate
 │   ├── swp.py
 │   └── time_modulated.py
 ├── Subwavelength3D                             # 3D code
-│   ├── classic_finite.py
-│   ├── classic_periodic.py
-│   ├── fmm.py
+│   ├── classic_finite.py                      # Classical finite systems (multipole expansion)
+│   ├── classic_periodic.py                    # Classical periodic systems (lattice sums)
+│   ├── nonreciprocal.py                       # Non-reciprocal finite and periodic systems (v3.0)
+│   ├── epstein.py                             # Epstein zeta acceleration (monopole, optional epsteinlib)
+│   ├── fmm.py                                 # Fast multipole method acceleration
 │   ├── swp.py
 │   └── theory.adoc
 ├── tests
 │   ├── test_3D_finite.py
 │   ├── test_3D_periodic.py
+│   ├── test_3D_nonreciprocal.py               # Tests for NonReciprocalFiniteSWP3D (v3.0)
+│   ├── test_3D_nonreciprocal_periodic.py      # Tests for NonReciprocalPeriodicSWP3D (v3.0)
+│   ├── test_3D_periodic_epstein.py            # Epstein zeta vs lattice sum consistency (v3.0)
 │   ├── test_classic.py
 │   ├── test_nonreciprocal.py
 │   └── test_utils.py

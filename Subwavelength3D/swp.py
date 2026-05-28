@@ -1,3 +1,5 @@
+"""Base class for three-dimensional subwavelength resonator systems."""
+
 import numpy as np
 
 import copy

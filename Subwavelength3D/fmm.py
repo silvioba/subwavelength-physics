@@ -1,11 +1,10 @@
-from scipy.sparse.linalg import LinearOperator, cg, gmres, minres, bicg, bicgstab, lgmres
+"""Fast Multipole Method acceleration for 3D capacitance matrix computation."""
+
+from scipy.sparse.linalg import LinearOperator, cg, gmres
 import numpy as np
 import fmm3dpy as fmm
 
-from scipy.special import spherical_jn, hankel1, sph_harm
-from sympy.physics.wigner import wigner_3j
-
-from functools import cache
+from scipy.special import hankel1
 
 from joblib import Parallel, delayed, parallel_config
 
@@ -23,6 +22,18 @@ def _insulate(f):
 
 
 def get_FMM_operator(centers, radii, eps=1e-3, dipole=False, return_diag=False) -> LinearOperator:
+    """Build an FMM-accelerated single-layer potential operator.
+
+    Args:
+        centers: Resonator centres, shape (N, 3).
+        radii: Resonator radii, shape (N,).
+        eps: FMM tolerance.
+        dipole: Include dipole terms (N_multipole=2).
+        return_diag: Also return the diagonal self-interaction vector.
+
+    Returns:
+        LinearOperator (N x N or 4N x 4N), optionally with diagonal vector.
+    """
     N = centers.shape[0]
 
     if not dipole:
@@ -71,16 +82,10 @@ def get_FMM_operator(centers, radii, eps=1e-3, dipole=False, return_diag=False) 
             return LinearOperator((4*N, 4*N), matvec=matvec, dtype=float), self_interactions
         return LinearOperator((4*N, 4*N), matvec=matvec, dtype=float)
 
-    # def matmul(X: np.ndarray):
-    #     # X is a matrix of shape (N, K) with each column corresponding to a different source arrangement
-    #     K = X.shape[1]
-    #     out = fmm.hfmm3d(eps=eps, zk=1e-9, sources=centers.T,
-    #                      charges=X.T, targets=centers.T, pgt=1, nd=K)
-    #     Y = out.pottarg.T  # (N, K)
-    #     return -4*np.pi*out.pottarg + self_interactions*X
 
 
 def operator_to_matrix(F):
+    """Convert a LinearOperator to a dense matrix by probing with unit vectors."""
     M = F.shape[0]
     S = np.zeros((M, M), dtype=float)
     for j in range(M):
@@ -92,6 +97,7 @@ def operator_to_matrix(F):
 
 
 def compute_capacitance_matrix(centers, radii, eps=1e-3, dipole=False):
+    """Compute the capacitance matrix via GMRES solves on the FMM operator (serial)."""
     N = centers.shape[0]
     S = get_FMM_operator(centers, radii, eps=eps, dipole=dipole)
 
@@ -118,7 +124,7 @@ def compute_capacitance_matrix(centers, radii, eps=1e-3, dipole=False):
     return C
 
 
-def compute_capacitance_matrix_accelerated(centers, radii, eps=1e-3, dipole=False, n_jobs=12, verbose=False):
+def compute_capacitance_matrix_accelerated(centers, radii, eps=1e-3, dipole=False, n_jobs=-1, verbose=False):
     """Fast capacitance matrix calculation using SciPy **CG**, Jacobi PC, and **joblib** parallel RHS.
 
     - Forms SPD system 	Tilde{S} = S*C (C = diag(1/r^2), repeated for dipoles)

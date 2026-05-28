@@ -1,3 +1,5 @@
+"""Propagation matrices and Q-matrices for 1D resonator systems."""
+
 import numpy as np
 from typing import Literal, Callable, Tuple, Self, List
 import matplotlib.pyplot as plt
@@ -109,10 +111,6 @@ def propagation_matrix_single(
         M21 = -z * cos_o * sin_i / (vi * delta) - z * cos_i * sin_o / vo
         M22 = cos_i * cos_o - (vi * delta * sin_i * sin_o) / vo
 
-        ckl = np.cos(z * l)
-        skl = np.sin(z * l)
-        cks = np.cos(z * s)
-        sks = np.sin(z * s)
         return np.array([[M11, M12], [M21, M22]])
 
 

@@ -1,3 +1,5 @@
+"""Banded matrix wrappers as SWP objects for direct capacitance matrix specification."""
+
 import numpy as np
 import scipy as sci
 from Subwavelength1D.swp import (
@@ -17,6 +19,12 @@ import copy
 # to extend all the logic from SWP1D to M-matrix systems.
 
 class FiniteBandedMMatrix(FiniteSWP1D):
+    """Wraps a banded matrix as a finite SWP object for eigenvalue analysis.
+
+    Args:
+        diagonals: List of arrays [main_diag, super_diag_1, ...]. Sub-diagonals are mirrored.
+    """
+
     def __init__(self, diagonals: List[np.ndarray]):
         self.diagonals = diagonals
         self.N = len(diagonals[0])
@@ -67,6 +75,8 @@ class FiniteBandedMMatrix(FiniteSWP1D):
 
 
 class PeriodicBandedMMatrix(PeriodicSWP1D):
+    """Wraps a banded matrix as a periodic SWP object with Bloch wave number dependence."""
+
     def __init__(self, diagonals: List[np.ndarray]):
         self.diagonals = diagonals
         self.N = len(diagonals[0])

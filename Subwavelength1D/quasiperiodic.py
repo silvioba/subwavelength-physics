@@ -1,3 +1,5 @@
+"""Quasiperiodic sequence generators and analysis for 1D subwavelength systems."""
+
 import numpy as np
 from scipy.signal import correlate
 

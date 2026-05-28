@@ -1,3 +1,5 @@
+"""Metaatom pattern parsing, spectrum computation, and splitting analysis."""
+
 import time
 import numpy as np
 from scipy.signal import correlate
