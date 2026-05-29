@@ -1,80 +1,72 @@
+"""Propagation matrices and Q-matrices for 1D resonator systems."""
+
 import numpy as np
 from typing import Literal, Callable, Tuple, Self, List
 import matplotlib.pyplot as plt
 
-from Subwavelength1D.classic import FiniteSWP1D
 
-
-def get_Q_matrix(k: int | float, x: int | float) -> np.ndarray:
-    """Let u(x) = Ae^{ikx} + Be^{-ikx}. Then the Q matrix is defined as the matrix such that Q(k,x)@(A,B)^T = (u(x), u'(x))^T.
+def get_Q_matrix(z: int | float, x: int | float) -> np.ndarray:
+    """Let u(x) = Ae^{ikx} + Be^{-ikx}. Then the Q matrix is defined as the matrix such that Q(z,x)@(A,B)^T = (u(x), u'(x))^T.
 
     Args:
-        k (int | float): Wave number
+        z (int | float): Wave number
         x (int | float, optional): Spatal position for change of basis.
 
     Returns:
         np.ndarray: The Q matrix
     """
-    return np.array([[np.exp(1j * k * x), np.exp(-1j * k * x)], [1j * k * np.exp(1j * k * x), -1j * k * np.exp(-1j * k * x)]])
+    return _Q(x, 1j * z, -1j * z)
 
 
-def get_subwavelength_propagation_matrix_single(l, s, lbda):
-    return np.array([[1 - l * s * lbda, s], [-l * lbda, 1]])
-
-
-def nonreciprocal_nonsubwavelength_propagation_matrix_single(
-    l: int | float,
-    s: int | float,
-    gamma: int | float,
-    omega: int | float,
-    delta: int | float,
-    symmetrised=True,
-):
-    nu = np.sqrt(complex((gamma/2)**2-omega**2))
-
-    def Psi(a, b):
-        return (a*np.cos(omega*s)+b*np.sin(omega*s))/nu
-
-    P = np.array([
-        [
-            np.cos(omega*s)*np.cosh(nu*l)-1/delta *
-            Psi(-delta*gamma/2, omega)*np.sinh(nu*l),
-            1/omega*np.cosh(nu*l)*np.sin(omega*s)+delta/omega *
-            Psi(omega, -gamma/(2*delta))*np.sinh(nu*l)
-        ],
-        [
-            -omega*np.cosh(nu*l)*np.sin(omega*s)-omega/delta *
-            Psi(omega, delta*gamma/2)*np.sinh(nu*l),
-            np.cos(omega*s)*np.cosh(nu*l)-delta *
-            Psi(gamma/(2*delta), omega)*np.sinh(nu*l)
-        ]
+def _Q(x, r1, r2):
+    return np.array([
+        [np.exp(r1 * x), np.exp(r2 * x)],
+        [r1 * np.exp(r1 * x), r2 * np.exp(r2 * x)]
     ])
 
-    if symmetrised:
-        return P
-    else:
-        return np.exp(-l*gamma/2)*P
 
-
-def nonreciprocal_subwavelength_propagation_matrix_single(
-    l: int | float,
+def propagation_matrix_free_space(
     s: int | float,
-    gamma: int | float,
-    lbda: int | float,
-    symmetrised=True,
+    z: int | float,
+    vo: int | float = 1,
+    subwavelength: bool = True,
 ) -> np.ndarray:
-    def f(z): return z / (1-np.exp(-z))
-    P = np.array([[1-l*s*lbda/f(gamma*l), np.exp(-gamma*l)*s],
-                  [-l*lbda/f(gamma*l), np.exp(-gamma*l)]])
-    if symmetrised:
-        P = np.exp(gamma * l / 2) * P
-    return P
+    """
+    Computes the propagation matrix from A to B in empty space like
+    |--s--| 
+    ^A    ^B
+
+    Args:
+        s (int | float): length in free space
+        z (int | float): wave number
+        delta (int | float): derivative transmission parameter
+        subwavelength (bool): whether to use the subwavelength approximation
+
+    Returns:
+        np.ndarray: propagation matrix from A to B
+    """
+    if subwavelength:
+        return np.array([[1, s], [0, 1]])
+    else:
+        phase = s * z / vo
+
+        cos_p = np.cos(phase)
+        sin_p = np.sin(phase)
+
+        M11 = cos_p
+        M12 = vo * sin_p / z
+        M21 = -z * sin_p / vo
+        M22 = cos_p
+
+        return np.array([[M11, M12], [M21, M22]])
 
 
 def propagation_matrix_single(
     l: int | float,
     s: int | float,
-    k: int | float,
+    vi: int | float,
+    vo: int | float,
+    z: int | float,
     delta: int | float = 1e-3,
     subwavelength: bool = True,
 ) -> np.ndarray:
@@ -88,7 +80,7 @@ def propagation_matrix_single(
     Args:
         l (int | float): length of the resonator
         s (int | float): length in free space
-        k (int | float): wave number
+        z (int | float): frequency (corresponds to either lambda if subwavelength or omega if not)
         delta (int | float): derivative transmission parameter
         subwavelength (bool): whether to use the subwavelength approximation
 
@@ -96,47 +88,133 @@ def propagation_matrix_single(
         np.ndarray: propagation matrix from A to B
     """
     if subwavelength:
-        return get_subwavelength_propagation_matrix_single(l, s, k)
-    ckl = np.cos(k * l)
-    skl = np.sin(k * l)
-    cks = np.cos(k * s)
-    sks = np.sin(k * s)
-    return np.array(
-        [
+        vi2 = vi ** 2
+
+        M11 = 1 - (l * s * z) / vi2
+        M12 = s
+        M21 = -(l * z) / vi2
+        M22 = 1
+        return np.array([[M11, M12], [M21, M22]])
+    else:
+        # Precompute phase terms
+        phi_i = l * z / vi      # phase inside
+        phi_o = s * z / vo     # phase outside
+
+        cos_i = np.cos(phi_i)
+        sin_i = np.sin(phi_i)
+        cos_o = np.cos(phi_o)
+        sin_o = np.sin(phi_o)
+
+        # Matrix elements
+        M11 = cos_i * cos_o - (vo * sin_i * sin_o) / (vi * delta)
+        M12 = (vi * delta * cos_o * sin_i + vo * cos_i * sin_o) / z
+        M21 = -z * cos_o * sin_i / (vi * delta) - z * cos_i * sin_o / vo
+        M22 = cos_i * cos_o - (vi * delta * sin_i * sin_o) / vo
+
+        return np.array([[M11, M12], [M21, M22]])
+
+
+def nonreciprocal_propagation_matrix_single(
+    l: int | float,
+    s: int | float,
+    z: int | float,
+    gamma: int | float,
+    delta: int | float = 1e-3,
+    symmetrised: bool = True,
+    subwavelength: bool = True,
+) -> np.ndarray:
+    """
+    Computes the propagation matrix from A to B in a structure like
+
+     |--l--|--s--|
+     [-----]     [-----]
+    ^A          ^B
+
+    Args:
+        l (int | float): length of the resonator
+        s (int | float): length in free space
+        z (int | float): frequency (corresponds to either lambda if subwavelength or omega if not)
+        delta (int | float): derivative transmission parameter
+        subwavelength (bool): whether to use the subwavelength approximation
+
+    Returns:
+        np.ndarray: propagation matrix from A to B
+    """
+    if subwavelength:
+        def f(z): return z / (1-np.exp(-z))
+        P = np.array([[1-l*s*z/f(gamma*l), np.exp(-gamma*l)*s],
+                      [-l*z/f(gamma*l), np.exp(-gamma*l)]])
+        if symmetrised:
+            P = np.exp(gamma * l / 2) * P
+        return P
+    else:
+        nu = np.sqrt(complex((gamma/2)**2-z**2))
+
+        def Psi(a, b):
+            return (a*np.cos(z*s)+b*np.sin(z*s))/nu
+
+        P = np.array([
             [
-                ckl * ckl - (1 / delta) * skl * sks,
-                (delta / k) * cks * skl + (1 / k) * ckl * sks,
+                np.cos(z*s)*np.cosh(nu*l)-1/delta *
+                Psi(-delta*gamma/2, z)*np.sinh(nu*l),
+                1/z*np.cosh(nu*l)*np.sin(z*s)+delta/z *
+                Psi(z, -gamma/(2*delta))*np.sinh(nu*l)
             ],
-            [(-k / delta) * cks * skl + k * ckl *
-             sks, ckl * cks - delta * skl * sks],
-        ]
-    )
+            [
+                -z*np.cosh(nu*l)*np.sin(z*s)-z/delta *
+                Psi(z, delta*gamma/2)*np.sinh(nu*l),
+                np.cos(z*s)*np.cosh(nu*l)-delta *
+                Psi(gamma/(2*delta), z)*np.sinh(nu*l)
+            ]
+        ])
+
+    if symmetrised:
+        return P
+    else:
+        return np.exp(-l*gamma/2)*P
 
 
 def propagation_matrix_block(
     block: Tuple[Tuple[int | float]],
-    k: int | float,
+    z: int | float,
+    vo: int | float = 1,
     delta: int | float = 1e-3,
     subwavelength: bool = True,
 ) -> np.ndarray:
     mat = np.eye(2)
     ll, ss = block
+    if len(ss) == len(ll) + 1:
+        # Block with pre and post spacing
+        mat = propagation_matrix_free_space(
+            ss[0], z, vo=vo, subwavelength=subwavelength) @ mat
+        ss = ss[1:]
     for i in range(len(ll)):
         mat = propagation_matrix_single(
-            ll[i], ss[i], k, delta, subwavelength) @ mat
+            l=ll[i], s=ss[i], vi=1, vo=vo, z=z, delta=delta, subwavelength=subwavelength) @ mat
     return mat
 
 
 def propagation_matrix_nonreciprocal_block(
     block: Tuple[Tuple[int | float]],
-    k: int | float,
+    z: int | float,
+    vo: int | float = 1,
     symmetrised: bool = True,
+    subwavelength: bool = True,
 ) -> np.ndarray:
+    if vo != 1:
+        raise NotImplementedError(
+            "Only vo=1 is implemented for nonreciprocal propagation matrices."
+        )
     mat = np.eye(2)
     ll, ss, gamma = block
+    if len(ss) == len(ll) + 1:
+        # Block with pre and post spacing
+        mat = propagation_matrix_free_space(
+            ss[0], z, vo=vo, subwavelength=subwavelength) @ mat
+        ss = ss[1:]
     for i in range(len(ll)):
-        mat = nonreciprocal_subwavelength_propagation_matrix_single(
-            ll[i], ss[i], gamma[i], k, symmetrised=symmetrised) @ mat
+        mat = nonreciprocal_propagation_matrix_single(
+            l=ll[i], s=ss[i], z=z, gamma=gamma[i], symmetrised=symmetrised, subwavelength=subwavelength) @ mat
     return mat
 
 
@@ -145,13 +223,13 @@ def propagation_matrix_block_function(
     delta: int | float = 1e-3,
     subwavelength: bool = True,
 ) -> Callable[[int | float], np.ndarray]:
-    return lambda k: propagation_matrix_block(
-        block, k, delta=delta, subwavelength=subwavelength
+    return lambda z: propagation_matrix_block(
+        block, z, delta=delta, subwavelength=subwavelength
     )
 
 
 def plot_propagation_eigenvalues(
-    fswp: FiniteSWP1D,
+    fswp,
     k_min: float = 1e-1,
     k_max: int = 5,
     n_pts: int = 100,
@@ -178,8 +256,8 @@ def plot_propagation_eigenvalues(
         fig, ax = plt.subplots(1, 1)
     ks = np.linspace(k_min, k_max, n_pts)
     eves = np.zeros((len(ks), 2 if not only_large else 1), dtype=complex)
-    for i, k in enumerate(ks):
-        fswp.set_omega(k)
+    for i, z in enumerate(ks):
+        fswp.set_omega(z)
         D, S = np.linalg.eig(
             fswp.compute_propagation_matrix(
                 space_from_end=space_from_end, subwavelength=subwavelength

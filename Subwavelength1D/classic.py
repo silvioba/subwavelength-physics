@@ -1,3 +1,5 @@
+"""Classical (reciprocal) finite and periodic 1D subwavelength resonator systems."""
+
 import numpy as np
 import scipy as sci
 from Subwavelength1D.swp import (
@@ -7,6 +9,8 @@ from Subwavelength1D.swp import (
 
 
 import Utils.utils_propagation as utils_propagation
+from Utils.utils_propagation import get_Q_matrix as _Q
+
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -29,14 +33,14 @@ def check_parameters_inconsistencies(fwp: FiniteSWP1D):
     if not (np.abs(fwp.k_in - fwp.omega / fwp.v_in) < 1e-6).all():
         raise ValueError("k_in does not equal omega / v_in")
     if not (np.abs(fwp.k_out - fwp.omega / fwp.v_out) < 1e-6).all():
-        raise ValueError("k_in does not equal omega / v_in")
+        raise ValueError("k_out does not equal omega / v_out")
 
 
 class ClassicFiniteSWP1D(FiniteSWP1D):
-    FiniteSWP1D.__doc__ + """
-    Base class for acoustic subwavelength wave problem. Subclass of OneDimensionalFiniteSWLProblem
+    """Classical finite 1D subwavelength resonator system.
 
-    Initially modelled on [1] (see README), subsequently extended
+    Extends FiniteSWP1D with reciprocal acoustic physics: capacitance matrix,
+    eigenvalue computation, propagation matrices, and wave solution methods.
     """
 
     def __init__(self, **pars):
@@ -249,7 +253,7 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
                 - S: np.ndarray of eigenvectors, normalized and properly scaled
 
         The generalized capacitance matrix is constructed by scaling the regular capacitance matrix
-        with material properties. The eigenvalues and eigenvectors are computed using 
+        with material properties. The eigenvalues and eigenvectors are computed using
         scipy.linalg.eigh_tridiagonal for efficiency, as the capacitance matrix has a tridiagonal structure.
 
         The eigenvectors are scaled by the material properties and then normalized.
@@ -306,16 +310,14 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         """
         if self.omega is None:
             raise ValueError("omega must be set, is currently None")
-        if np.linalg.norm(self.k_in - np.ones(self.N) * self.k_out) > 1e-8:
-            raise NotImplementedError(
-                "Propagation matrix is implemented only for structure with same wave number inside and outside."
-            )
 
         if j == self.N - 1:
             p = utils_propagation.propagation_matrix_single(
                 l=self.l[-1],
                 s=space_from_end,
-                k=self.k_in[-1],
+                vi=self.v_in[-1],
+                vo=self.v_out,
+                z=self.omega,
                 delta=self.delta,
                 subwavelength=subwavelength,
             )
@@ -323,12 +325,15 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
             p = utils_propagation.propagation_matrix_single(
                 l=self.l[j],
                 s=self.s[j],
-                k=self.k_in[j],
+                vi=self.v_in[j],
+                vo=self.v_out,
+                z=self.omega,
                 delta=self.delta,
                 subwavelength=subwavelength,
             )
         return p
 
+    @override
     def compute_propagation_matrix(
         self, space_from_end: float = 1.0, subwavelength: bool = True
     ) -> np.ndarray:
@@ -400,6 +405,74 @@ class ClassicFiniteSWP1D(FiniteSWP1D):
         Rtot = - M[1, 0] / M[1, 1]
         Ttot = M[0, 0] + M[0, 1] * Rtot
         return np.abs(Rtot), np.abs(Ttot)
+
+    def solve_u(self, alpha_0=None):
+        """Compute the wave solution coefficients by propagating through all resonators.
+
+        Args:
+            alpha_0: Initial exterior coefficients [forward, backward]. Defaults to [0, 1].
+        """
+        assert self.omega is not None, "omega must be set, is currently None"
+
+        alphas = np.zeros((self.N + 1, 2), dtype=complex)
+        aas = np.zeros((self.N, 2), dtype=complex)
+        if alpha_0 is None:
+            alphas[0] = [0.0, 1.0]
+        else:
+            alphas[0] = alpha_0
+
+        D = np.diag([1, self.delta])
+        Dinv = np.diag([1, 1/self.delta])
+
+        for j in range(self.N):
+            # alpha outside to u inside
+            u_outside_m = _Q(self.omega/self.v_out, self.xim[j]) @ alphas[j]
+            u_inside_m = D @ u_outside_m
+
+            # calculate a inside
+            aas[j] = np.linalg.inv(
+                _Q(self.omega/self.v_in[j], self.xim[j])) @ u_inside_m
+
+            # a inside to alpha outside
+            u_inside_p = _Q(self.omega/self.v_in[j], self.xip[j]) @ aas[j]
+            u_outside_p = Dinv @ u_inside_p
+            alphas[j+1] = np.linalg.inv(_Q(self.omega /
+                                        self.v_out, self.xip[j])) @ u_outside_p
+
+        self.alphas = alphas
+        self.aas = aas
+
+    def u(self, x, return_inside=False):
+        """Evaluate the wave solution at position x.
+
+        Args:
+            x: Position at which to evaluate.
+            return_inside: If True, also return whether x is inside a resonator.
+
+        Returns:
+            Complex wave amplitude, or (amplitude, is_inside) if return_inside is True.
+        """
+        assert self.aas is not None and self.alphas is not None, "Must call solve_u before calling u"
+        # Find j such that self.xi[j] < x < self.xi[j+1]
+        j = np.searchsorted(self.xi, x) - 1
+        if j % 2 == 0:
+            # Inside resonator
+            i = (j // 2)
+            u = self.aas[i][0]*np.exp(1j*self.omega/self.v_in[i]*x) + \
+                self.aas[i][1]*np.exp(-1j*self.omega/self.v_in[i]*x)
+            if return_inside:
+                return u, True
+            else:
+                return u
+        else:
+            # Outside resonator
+            i = ((j + 1) // 2)
+            u = self.alphas[i][0]*np.exp(1j*self.omega/self.v_out*x) + \
+                self.alphas[i][1]*np.exp(-1j*self.omega/self.v_out*x)
+            if return_inside:
+                return u, False
+            else:
+                return u
 
 
 class ClassicPeriodicSWP1D(PeriodicSWP1D):

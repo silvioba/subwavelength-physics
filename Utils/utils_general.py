@@ -1,4 +1,7 @@
+"""General utilities: eigenvalue sorting, root-finding, and eigenvector tracking."""
+
 from functools import wraps
+import warnings
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -17,6 +20,90 @@ def unique_eigenvector_phases(S):
     S = S / S[0, :]
     S = S / np.linalg.norm(S, axis=0)
     return S
+
+
+def remove_edgemodes(D, S, num=1):
+    """Removes edge-localized modes based on the amplitude at the edges.
+
+    Args:
+        D (np.ndarray): Array of eigenvalues.
+        S (np.ndarray): Array of eigenvectors.
+        num (int, optional): Number of edge modes to remove. Defaults to 1.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Arrays of eigenvalues and eigenvectors with edge modes removed.
+    """
+
+    sidx = np.argsort(np.abs(S[0, :])+np.abs(S[-1, :]))
+    edge_idx = sidx[-num:]
+    keep_idx = np.setdiff1d(np.arange(D.shape[0]), edge_idx)
+    return D[keep_idx], S[:, keep_idx]
+
+
+def mullers_method(f, x0, x1, x2, tol=1e-7, max_iter=100):
+    """
+    Find a root of function f using Muller's method given three starting points.
+    """
+    res = 0
+    for i in range(max_iter):
+        f0, f1, f2 = f(x0), f(x1), f(x2)
+
+        h1 = x1 - x0
+        h2 = x2 - x1
+
+        d1 = (f1 - f0) / h1
+        d2 = (f2 - f1) / h2
+
+        d = (d2 - d1) / (h2 + h1)
+
+        b = d2 + h2 * d
+        D = np.sqrt(b**2 - 4 * f2 * d + 0j)  # +0j ensures complex sqrt
+
+        # Choose the sign that maximizes the denominator
+        if np.abs(b - D) < np.abs(b + D):
+            E = b + D
+        else:
+            E = b - D
+
+        h = -2 * f2 / E
+        p = x2 + h
+
+        if np.abs(h) < tol:
+            return p
+
+        x0, x1, x2 = x1, x2, p
+
+    warnings.warn("Muller's method did not converge")
+    return p
+
+
+def find_roots_muller(f, z0, n_roots, perturbation=1e-2):
+    """
+    Find n_roots of f starting near z0 using Muller's method with deflation.
+    """
+    roots = []
+
+    def deflated_f(z):
+        val = f(z)
+        for r in roots:
+            val /= (z - r)
+        return val
+
+    current_z = z0
+
+    for _ in range(n_roots):
+        # Generate 3 initial points near the current guess
+        p0 = current_z
+        p1 = current_z + perturbation
+        p2 = current_z - perturbation
+
+        root = mullers_method(deflated_f, p0, p1, p2)
+        roots.append(root)
+
+        # Update starting point for next root (simple heuristic: move slightly away)
+        current_z = root + perturbation * 2
+
+    return np.array(roots)
 
 
 def sort_by_eve_middle_localization(D, S):
@@ -118,12 +205,12 @@ class EigenvectorPathTracker:
     """
 
     def __init__(self, initial_sorting_method="eva_real"):
-        self.inital_sorting_method = initial_sorting_method
+        self.initial_sorting_method = initial_sorting_method
         self.D = None
         self.S = None
 
     def _initial(self, D: np.array, S: np.array):
-        D, S = sort_by_method(D, S, self.inital_sorting_method)
+        D, S = sort_by_method(D, S, self.initial_sorting_method)
         self.D, self.S = D.copy(), S.copy()
         return D, S
 

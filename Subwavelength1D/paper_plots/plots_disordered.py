@@ -985,8 +985,8 @@ def plot_band_gap(mat, k_min=1e-1, k_max=5, n_pts=100, ax=None):
         D, S = sort_by_eva_abs(*np.linalg.eig(mat(k)))
         eves[i] = D
 
-    ax.semilogy(ks, np.abs(eves[:, 0]), 'b-')
-    ax.semilogy(ks, np.abs(eves[:, 1]), 'r-')
+    ax.semilogy(ks, np.abs(eves[:, 0]), 'r-')
+    ax.semilogy(ks, np.abs(eves[:, 1]), 'b-')
 
 
 def plot_source_sink(mat, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, ax=None, arctan=False, marker='.'):
@@ -1010,19 +1010,20 @@ def plot_source_sink(mat, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, ax=None, a
         gap[i] = np.imag(D[0]) < 1e-5
         if arctan:
             S = unique_eigenvector_phases(S)
-            # Source
+            # Source / Smaller Magnitude EVA
             zs[i, 0] = np.arctan(np.real(S[1, 0]) / np.real(S[0, 0]))
-            # Sink
+            # Sink / Larger Magnitude EVA
             zs[i, 1] = np.arctan(np.real(S[1, 1]) / np.real(S[0, 1]))
         else:
-            # Source
-            zs[i, 0] = np.real(S[1, 0] / S[0, 0])
-            # Sink
-            zs[i, 1] = np.real(S[1, 1] / S[0, 1])
-    ax.plot(ks[gap], zs[gap, 0], f'r{marker}')
-    ax.plot(ks[gap], zs[gap, 1], f'b{marker}')
+            # Source / Smaller Magnitude EVA
+            zs[i, 0] = np.real(S[0, 0] / S[1, 0])
+            # Sink / Larger Magnitude EVA
+            zs[i, 1] = np.real(S[0, 1] / S[1, 1])
+    ax.plot(ks[gap], zs[gap, 0], f'r{marker}', label='Source')
+    ax.plot(ks[gap], zs[gap, 1], f'b{marker}', label='Sink')
+    ax.legend()
     if ylim and not arctan:
-        ax.set_ylim(1-ylim, 1+ylim)
+        ax.set_ylim(-ylim, ylim)
 
 
 def plot_block_characteristics(block, k_min=1e-1, k_max=5, n_pts=1000, ylim=None, axes=None, arctan=False):

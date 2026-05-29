@@ -1,3 +1,5 @@
+"""Base classes for one-dimensional subwavelength resonator systems."""
+
 import numpy as np
 import scipy as sci
 
@@ -7,7 +9,6 @@ from typing import Literal, Callable, Tuple, Self, List
 import Utils.utils_general as utils
 
 import matplotlib.pyplot as plt
-import Utils.settings as settings
 
 
 class SWP1D:
@@ -34,8 +35,8 @@ class SWP1D:
             N (int): Number of resonators.
             l (np.ndarray | float): Array or float representing the lengths.
             s (np.ndarray | float): Array or float representing the spacings.
-            v_in (np.ndarray | float | complex | None, optional): Input velocity. Defaults to None.
-            v_out (float | None, optional): Output velocity. Defaults to None.
+            v_in (np.ndarray | float | complex | None, optional): Interior wave speed. Defaults to None.
+            v_out (float | None, optional): Exterior wave speed. Defaults to None.
             delta (float | None, optional): Delta parameter. Defaults to None.
             omega (float | complex | None, optional): Omega parameter. Defaults to None.
             uin (callable, optional): Function for initial condition. Defaults to lambda x: np.sin(x).
@@ -45,8 +46,8 @@ class SWP1D:
             N (int): Number of elements in l.
             l (np.ndarray | float): Lengths.
             s (np.ndarray | float): Spacings.
-            v_in (np.ndarray | float | complex | None): Input velocity.
-            v_out (float | None): Output velocity.
+            v_in (np.ndarray | float | complex | None): Interior wave speed.
+            v_out (float | None): Exterior wave speed.
             delta (float | None): Delta parameter.
             omega (float | complex | None): Omega parameter.
             k_in (float | None): Wave number for input.
@@ -76,7 +77,7 @@ class SWP1D:
         if omega:
             self.set_omega(omega)
         else:
-            self.k_in, self.k_in = None, None
+            self.k_in, self.k_out = None, None
 
         self.uin = uin
         self.duin = duin
@@ -202,8 +203,8 @@ class FiniteSWP1D(SWP1D):
         N (int): Number of resonators.
         l (np.ndarray | float): Lengths of the resonators. If a float is provided, it is assumed to be constant for all resonators.
         s (np.ndarray | float): Spacings between the resonators. If a float is provided, it is assumed to be constant for all spacings.
-        v_in (np.ndarray | float | complex | None, optional): Input voltages. If a float or complex is provided, it is assumed to be constant for all inputs. Defaults to None.
-        v_out (float | None, optional): Output voltage. If a float is provided, it is assumed to be constant for all outputs. Defaults to None.
+        v_in (np.ndarray | float | complex | None, optional): Interior wave speeds. If a float or complex is provided, it is assumed to be constant for all inputs. Defaults to None.
+        v_out (float | None, optional): Exterior wave speeds. If a float is provided, it is assumed to be constant for all outputs. Defaults to None.
         delta (float | None, optional): Delta parameter. Defaults to None.
         omega (float | complex | None, optional): Omega parameter. Defaults to None.
         uin (callable, optional): Function for the input voltage. Defaults to lambda x: np.sin(x).
@@ -212,8 +213,8 @@ class FiniteSWP1D(SWP1D):
         N (int): Number of resonators.
         l (np.ndarray): Lengths of the resonators.
         s (np.ndarray): Spacings between the resonators.
-        v_in (np.ndarray | None): Input voltages.
-        v_out (np.ndarray | None): Output voltage.
+        v_in (np.ndarray | None): Interior wave speeds.
+        v_out (np.ndarray | None): Exterior wave speeds.
         delta (float | None): Delta parameter.
         omega (float | complex | None): Omega parameter.
         uin (callable): Function for the input voltage.
@@ -260,6 +261,8 @@ class FiniteSWP1D(SWP1D):
                 np.ones(N, dtype=complex if isinstance(
                     v_in, complex) else float) * v_in
             )
+        if isinstance(v_in, list):
+            v_in = np.array(v_in)
 
         assert (
             len(l) == N
@@ -306,6 +309,11 @@ class FiniteSWP1D(SWP1D):
         return np.linalg.inv(
             self.get_generalised_capacitance_matrix() - k * np.eye(self.N)
         )
+
+    def compute_propagation_matrix(
+        self, space_from_end: float = 1.0, subwavelength: bool = True
+    ) -> np.ndarray:
+        raise NotImplementedError
 
     def compute_Thouless_ratios(self, D=None, sN=None, method='kde', W=0.1, knn=10, bw=0.01, return_all=False):
         """

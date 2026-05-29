@@ -1,3 +1,5 @@
+"""Visualization utilities for spectra, eigenvectors, and band structures."""
+
 import numpy as np
 import scipy as sci
 
@@ -11,14 +13,14 @@ import matplotlib.cm as cm
 
 from Utils.settings import settings as settings
 
-from Utils.utils_general import *
+from Utils.utils_general import sort_by_eva_abs
 import Utils.utils_propagation as utils_propagation
 
 import Subwavelength1D.swp as swp
 import Subwavelength1D.classic as classic
+import Subwavelength3D.classic_finite as classic_finite_3D
 import Subwavelength1D.disordered as disordered
-from Subwavelength1D.metaatom import *
-from Subwavelength1D.quasiperiodic import *
+from Subwavelength1D.disordered import DisorderedClassicFiniteSWP1D
 
 from typing import Literal, Callable, Tuple, Self, List
 from typing_extensions import override
@@ -27,14 +29,14 @@ import copy
 from tqdm import tqdm
 
 
-from itertools import product
-from collections import deque
 plt.rcParams.update(settings.matplotlib_params)
 
 
 def visualize_spectrum(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=False, axes=None):
     if axes is None:
         fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    else:
+        fig = axes[0].get_figure()
     if D is None or S is None:
         D, S = sp.compute_sorted_eigs_capacitance_matrix()
     assert np.allclose(np.imag(D), 0), "Eigenvalues are not real"
@@ -48,6 +50,45 @@ def visualize_spectrum(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=False, a
         axes[1].plot(sv, 'k-')
     if semilogy:
         axes[1].set_yscale('log')
+
+    return fig, axes
+
+
+def visualize_spectrum_2D(sp: classic_finite_3D.ClassicFiniteSWP3D, j, D=None, S=None, axes=None, radius_scaling=1):
+    # assert np.allclose(sp.centers[:, 2], 0), "All resonator centers must lie in the xy-plane (z=0)"
+
+    if axes is None:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    else:
+        fig = axes[0].get_figure()
+    if D is None or S is None:
+        D, S = sp.compute_sorted_eigs_capacitance_matrix()
+    assert np.allclose(np.imag(D), 0), "Eigenvalues are not real"
+
+    axes[0].plot(D, 'k.')
+    axes[0].plot(j, D[j], 'ro')
+    axes[0].set_xlabel("Index $i$")
+    axes[0].set_ylabel(r"$\lambda_i$")
+
+    sv = np.real(S[:, j])
+    vmax = np.max(np.abs(sv))
+    norm = mpl.colors.Normalize(vmin=-vmax, vmax=vmax)
+    cmap = plt.get_cmap('RdBu_r')
+
+    xy = sp.centers[:, :2]
+    patches = []
+    for i in range(sp.N):
+        circle = mpl.patches.Circle(xy[i], radius=sp.radii[i]*radius_scaling)
+        patches.append(circle)
+    pc = mpl.collections.PatchCollection(patches, cmap=cmap, norm=norm,
+                                         edgecolors='k', linewidths=0.5)
+    pc.set_array(sv)
+    axes[1].add_collection(pc)
+    axes[1].autoscale_view()
+    axes[1].set_aspect('equal')
+    axes[1].set_xlabel("$x$")
+    axes[1].set_ylabel("$y$")
+    fig.colorbar(pc, ax=axes[1], label=f"Eigenvector $v_{{{j}}}$")
 
     return fig, axes
 
@@ -66,8 +107,10 @@ def visualize_spectrum_complex(sp: swp.FiniteSWP1D, j, D=None, S=None, semilogy=
         sv = np.abs(S[:, j])
         axes[1].semilogy(sv, 'k-')
     else:
-        sv = np.real(S[:, j])
-        axes[1].plot(sv, 'k-')
+        sv = S[:, j]
+        axes[1].plot(sv.real, 'r-')
+        axes[1].plot(sv.imag, 'b-')
+    return fig, axes
 
 
 def visualize_spectrum_with_winding(dp: disordered.DisorderedNonReciprocalFiniteSWP1D, j,
@@ -105,7 +148,6 @@ def visualize_spectrum_with_blockcolors(sp: DisorderedClassicFiniteSWP1D, j, sem
     axes[0].plot(D_cut, 'k.')
     j_cut = len(D_cut) - j
     axes[0].plot(j_cut, D_cut[j_cut], 'ro')
-    print("Lambda:", D_cut[j_cut])
 
     color_list = ["blue", "red", "green"]
     cc = [
@@ -186,7 +228,8 @@ def shade_regions(dp: DisorderedClassicFiniteSWP1D, k_min=1e-3, k_max=5, n_pts=1
                 gap_count), edgecolor=None)
 
         # Create legend handles
-    red_patch = mpl.patches.Patch(color='red', alpha=0.3, label='Bandgap')
+    red_patch = mpl.patches.Patch(
+        color='red', alpha=0.3, label='Shared bandgap')
     green_patch = mpl.patches.Patch(
         color='green', alpha=0.3, label='Shared pass band')
     orange_patch = mpl.patches.Patch(

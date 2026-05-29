@@ -1,3 +1,5 @@
+"""FDTD simulation of the 1D acoustic wave equation in subwavelength structures."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 
